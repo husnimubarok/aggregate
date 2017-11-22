@@ -1,0 +1,294 @@
+import org.opendatakit.aggregate.gradle.gae.Rollback
+import org.opendatakit.aggregate.gradle.gae.Update
+
+import static org.opendatakit.aggregate.gradle.Util.*
+
+buildscript {
+  repositories {
+    jcenter()
+  }
+  dependencies {
+    classpath 'de.richsource.gradle.plugins:gwt-gradle-plugin:0.6'
+    classpath 'de.undercouch:gradle-download-task:3.3.0'
+  }
+}
+
+apply plugin: 'java'
+apply plugin: 'maven'
+apply plugin: 'war'
+apply plugin: 'gwt'
+apply plugin: 'de.undercouch.download'
+apply from: 'https://raw.github.com/akhikhl/gretty/master/pluginScripts/gretty.plugin'
+
+group = 'org.opendatakit'
+version = '1.0.1'
+
+description = ""
+
+sourceCompatibility = 1.7
+targetCompatibility = 1.7
+
+repositories {
+  mavenCentral()
+
+  flatDir {
+    dirs 'libs'
+  }
+}
+
+def versions = [
+    spring        : '4.3.4.RELEASE',
+    springSecurity: '4.2.0.RELEASE',
+    gwt           : [
+        servlet      : '2.7.0',
+        googleMapsV3 : '1.0.1',
+        visualization: '1.1.2'
+    ],
+    jackson       : '2.8.5',
+    geronimo      : '1.0',
+    httpcomponents: [
+        client: '4.5.2',
+        core  : '4.4.5',
+        mime  : '4.5.2'
+    ],
+    commons       : [
+        lang3     : '3.5',
+        fileUpload: '1.3.2',
+        dbcp2     : '2.1.1'
+    ],
+    googleApi     : [
+        client: '1.22.0',
+        sheets: 'v4-rev38-1.22.0',
+        drive : 'v3-rev52-1.22.0'
+    ],
+    wink          : '1.4',
+    gson          : '2.8.0',
+    kxml2         : '2.3.0',
+    odk           : [
+        javarosa     : '2.6.0',
+        httpclientGae: '4.5.2-1',
+        tomcatUtil   : '1.0.1'
+    ],
+    jdbc          : [
+        mysql     : '5.1.44',
+        postgresql: '42.1.4.jre7'
+    ],
+    gae           : '1.9.54',
+    odkTomcatUtil : '1.0.1',
+    servletApi    : '3.1.0',
+    junit         : '4.12'
+]
+
+dependencies {
+  compile group: 'org.opendatakit', name: 'odk-tomcatutil', version: versions.odk.tomcatUtil
+  compile group: 'org.springframework', name: 'spring-aop', version: versions.spring
+  compile group: 'org.springframework', name: 'spring-aspects', version: versions.spring
+  compile group: 'org.springframework', name: 'spring-beans', version: versions.spring
+  compile group: 'org.springframework', name: 'spring-context', version: versions.spring
+  compile group: 'org.springframework', name: 'spring-context-support', version: versions.spring
+  compile group: 'org.springframework', name: 'spring-core', version: versions.spring
+  compile group: 'org.springframework', name: 'spring-expression', version: versions.spring
+  compile group: 'org.springframework', name: 'spring-instrument', version: versions.spring
+  compile group: 'org.springframework', name: 'spring-jdbc', version: versions.spring
+  compile group: 'org.springframework', name: 'spring-tx', version: versions.spring
+  compile group: 'org.springframework', name: 'spring-instrument-tomcat', version: versions.spring
+  compile group: 'org.springframework', name: 'spring-web', version: versions.spring
+  compile group: 'org.springframework.security', name: 'spring-security-config', version: versions.springSecurity
+  compile group: 'org.springframework.security', name: 'spring-security-core', version: versions.springSecurity
+  compile group: 'org.springframework.security', name: 'spring-security-crypto', version: versions.springSecurity
+  compile group: 'org.springframework.security', name: 'spring-security-web', version: versions.springSecurity
+  compile group: 'com.googlecode.gwt-google-maps-v3', name: 'gwt-google-maps-v3', version: versions.gwt.googleMapsV3
+  compile group: 'com.google.gwt.google-apis', name: 'gwt-visualization', version: versions.gwt.visualization
+  compile group: 'com.google.gwt', name: 'gwt-servlet', version: versions.gwt.servlet
+  compile group: 'com.fasterxml.jackson.core', name: 'jackson-annotations', version: versions.jackson
+  compile group: 'com.fasterxml.jackson.core', name: 'jackson-core', version: versions.jackson
+  compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: versions.jackson
+  compile group: 'com.fasterxml.jackson.dataformat', name: 'jackson-dataformat-xml', version: versions.jackson
+  compile group: 'com.fasterxml.jackson.jaxrs', name: 'jackson-jaxrs-json-provider', version: versions.jackson
+  compile group: 'com.fasterxml.jackson.jaxrs', name: 'jackson-jaxrs-xml-provider', version: versions.jackson
+  compile group: 'org.apache.geronimo.specs', name: 'geronimo-jaxrs_1.1_spec', version: versions.geronimo
+  compile group: 'org.apache.httpcomponents', name: 'httpclient', version: versions.httpcomponents.client
+  compile group: 'org.apache.httpcomponents', name: 'httpcore', version: versions.httpcomponents.core
+  compile group: 'org.apache.httpcomponents', name: 'httpmime', version: versions.httpcomponents.mime
+  compile group: 'org.apache.commons', name: 'commons-lang3', version: versions.commons.lang3
+  compile group: 'org.apache.commons', name: 'commons-dbcp2', version: versions.commons.dbcp2
+  compile group: 'commons-fileupload', name: 'commons-fileupload', version: versions.commons.fileUpload
+  compile group: 'com.google.api-client', name: 'google-api-client', version: versions.googleApi.client
+  compile group: 'com.google.api-client', name: 'google-api-client-appengine', version: versions.googleApi.client
+  compile group: 'com.google.apis', name: 'google-api-services-sheets', version: versions.googleApi.sheets
+  compile group: 'com.google.apis', name: 'google-api-services-drive', version: versions.googleApi.drive
+  compile group: 'org.apache.wink', name: 'wink-common', version: versions.wink
+  compile group: 'org.apache.wink', name: 'wink-server', version: versions.wink
+  compile group: 'com.google.code.gson', name: 'gson', version: versions.gson
+  compile group: 'net.sf.kxml', name: 'kxml2', version: versions.kxml2
+  compile group: 'org.opendatakit', name: 'opendatakit-javarosa', version: versions.odk.javarosa
+  compile group: 'org.opendatakit', name: 'odk-httpclient-gae', version: versions.odk.httpclientGae
+  compile group: 'mysql', name: 'mysql-connector-java', version: versions.jdbc.mysql
+  compile group: 'org.postgresql', name: 'postgresql', version: versions.jdbc.postgresql
+  compile group: 'org.opendatakit', name: 'odk-tomcatutil', version: versions.odkTomcatUtil
+  compile group: 'com.google.appengine', name: 'appengine-api-1.0-sdk', version: versions.gae
+  compile group: 'com.google.appengine', name: 'appengine-api-labs', version: versions.gae
+  compile group: 'com.google.appengine', name: 'appengine-jsr107cache', version: versions.gae
+  compileOnly group: 'javax.servlet', name: 'javax.servlet-api', version: versions.servletApi
+  testCompile group: 'junit', name: 'junit', version: versions.junit
+  testCompile group: 'org.springframework', name: 'spring-test', version: versions.spring
+  testCompile group: 'com.google.appengine', name: 'appengine-api-stubs', version: versions.gae
+  testCompile group: 'com.google.appengine', name: 'appengine-testing', version: versions.gae
+}
+
+gwt {
+  gwtVersion = versions.gwt.servlet
+  modules 'org.opendatakit.aggregate.AggregateUI'
+  minHeapSize = "512M"
+  maxHeapSize = "1024M"
+}
+
+task explodedWar(type: Copy) {
+  into "$buildDir/exploded"
+  with war
+}
+
+war {
+  if (warMode == "installer") {
+    println "Excluding Guava from WAR"
+    war.rootSpec.exclude("**/guava*.jar")
+    println "Excluding config files from WAR"
+    war.rootSpec.exclude "jdbc.properties"
+    war.rootSpec.exclude "logging.properties"
+    war.rootSpec.exclude "odk-common-security-settings.xml"
+    war.rootSpec.exclude "odk-security-settings.xml"
+    war.rootSpec.exclude "odk-settings.xml"
+    war.rootSpec.exclude "security.properties"
+  }
+}
+
+gretty {
+  contextPath = '/'
+  host = 'localhost'
+}
+
+task gaeDownloadSDK() {
+  doLast {
+    if (!file('installer/appEngineSDK.zip').exists()) {
+      println("Downloading App Engine SDK 1.9.54")
+      download {
+        src 'https://storage.googleapis.com/appengine-sdks/featured/appengine-java-sdk-1.9.54.zip'
+        dest 'installer/appEngineSDK.zip'
+      }
+    } else
+      println("App Engine SDK is already present")
+  }
+}
+
+task gaeClean() {
+  delete "${buildDir}/gae"
+}
+
+task gaeCopyFiles(dependsOn: explodedWar, type: Copy) {
+  into "${buildDir}/gae/ear"
+  from fileTree(dir: 'src/main/gae_ear')
+
+  into("background") {
+    from fileTree(dir: "${buildDir}/exploded")
+    exclude "WEB-INF/classes/odk-settings.xml"
+    exclude "WEB-INF/classes/security.properties"
+  }
+
+  into("default") {
+    from fileTree(dir: "${buildDir}/exploded")
+    exclude "WEB-INF/classes/odk-settings.xml"
+    exclude "WEB-INF/classes/security.properties"
+  }
+
+  doLast {
+    delete "default/WEB-INF/lib/guava-jdk5-17.0.jar"
+    delete "background/WEB-INF/lib/guava-jdk5-17.0.jar"
+  }
+}
+
+task gaeCopySDK(dependsOn: gaeDownloadSDK, type: Copy) {
+  into "${buildDir}/gae"
+  from zipTree("${projectDir}/installer/appEngineSDK.zip")
+}
+
+task gaeCopyDummyApp(type: Copy) {
+  into "${buildDir}/gae/dummyApp"
+  from fileTree(dir: 'installer/dummyApp')
+}
+
+task gaePrepare(dependsOn: [gaeCopyFiles, gaeCopySDK, gaeCopyDummyApp]) {
+  doLast {
+    setXmlValue("${buildDir}/gae/dummyApp/WEB-INF/appengine-web.xml", "application", gaeAppId)
+    setXmlValue("${buildDir}/gae/ear/default/WEB-INF/appengine-web.xml", "application", gaeAppId)
+    setXmlValue("${buildDir}/gae/ear/background/WEB-INF/appengine-web.xml", "application", gaeAppId)
+    setXmlValue("${buildDir}/gae/ear/META-INF/appengine-application.xml", "application", gaeAppId)
+    setXmlValue("${buildDir}/gae/ear/META-INF/application.xml", "display-name", aggregateInstanceName)
+    setPropertiesValue("${buildDir}/gae/ear/default/WEB-INF/classes/security.properties", "security.server.hostname", "${gaeAppId}.appspot.com")
+    setPropertiesValue("${buildDir}/gae/ear/default/WEB-INF/classes/security.properties", "security.server.realm.realmString", "${aggregateInstanceName} ODK Aggregate")
+    setPropertiesValue("${buildDir}/gae/ear/default/WEB-INF/classes/security.properties", "security.server.superUserUsername", "${aggregateUsername}")
+    setPropertiesValue("${buildDir}/gae/ear/background/WEB-INF/classes/security.properties", "security.server.hostname", "${gaeAppId}.appspot.com")
+    setPropertiesValue("${buildDir}/gae/ear/background/WEB-INF/classes/security.properties", "security.server.realm.realmString", "${aggregateInstanceName} ODK Aggregate")
+    setPropertiesValue("${buildDir}/gae/ear/background/WEB-INF/classes/security.properties", "security.server.superUserUsername", "${aggregateUsername}")
+    truncate("${buildDir}/gae/ear/default/WEB-INF/classes/jdbc.properties")
+    truncate("${buildDir}/gae/ear/background/WEB-INF/classes/jdbc.properties")
+  }
+}
+
+Task gaeRollbackModule(String moduleName) {
+  task ("gaeRollback_${moduleName}", dependsOn: gaePrepare, type: Rollback) {
+    email = "${-> gaeEmail}"
+    workingDir = "${buildDir}/gae"
+    module = moduleName
+  }
+}
+
+task gaeRollback(dependsOn: [gaePrepare, gaeRollbackModule("default"), gaeRollbackModule("background")]) {
+
+}
+
+task gaeUpdate(dependsOn: gaePrepare, type: Update) {
+  email = "${-> gaeEmail}"
+  workingDir = "${buildDir}/gae"
+
+  doLast {
+    println "Finished updating your Aggregate instance in AppEngine"
+    println "Now you should be able to access it at https://${gaeAppId}.appspot.com"
+  }
+}
+
+task cleanInstaller() {
+  delete 'build/installer'
+}
+
+task buildInstaller(dependsOn: [cleanInstaller, gaeDownloadSDK], type: Copy) {
+  into "${buildDir}/installer"
+  from fileTree(dir: 'installer/installBuilder')
+
+  into('files') {
+    from zipTree('installer/appEngineSDK.zip')
+    from zipTree('installer/legacyremoval.zip')
+    from zipTree('installer/other.zip')
+    from zipTree('installer/gae.zip')
+    from zipTree('installer/sqljdbc_6.0.zip')
+    from "${buildDir}/libs/${archivesBaseName}-${version}.war"
+  }
+
+  into('files/conf') {
+    from fileTree(dir: 'installer/platforms')
+    from zipTree('installer/ear.zip')
+  }
+
+  into('files/conf/common') {
+    from files(
+        'src/main/resources/logging.properties',
+        'src/main/resources/odk-common-security-settings.xml',
+        'src/main/resources/odk-security-settings.xml',
+        'src/main/resources/security.properties'
+    )
+  }
+
+  doLast {
+    file("build/installer/files/${archivesBaseName}-${version}.war").renameTo(file("build/installer/files/ODKAggregate.war"))
+    file("build/installer/files/appengine-java-sdk-1.9.54").renameTo(file("build/installer/files/appengine-java-sdk"))
+  }
+}

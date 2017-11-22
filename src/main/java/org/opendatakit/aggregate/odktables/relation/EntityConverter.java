@@ -29,6 +29,7 @@ import org.opendatakit.aggregate.odktables.rest.ElementType;
 import org.opendatakit.aggregate.odktables.rest.entity.Column;
 import org.opendatakit.aggregate.odktables.rest.entity.DataKeyValue;
 import org.opendatakit.aggregate.odktables.rest.entity.Row;
+import org.opendatakit.aggregate.odktables.rest.entity.RowFilterScope;
 import org.opendatakit.aggregate.odktables.rest.entity.Scope;
 import org.opendatakit.aggregate.odktables.rest.entity.TableAcl;
 import org.opendatakit.aggregate.odktables.rest.entity.TableDefinition;
@@ -182,7 +183,9 @@ public class EntityConverter {
       return new DataField(entity.getElementKey().toUpperCase(), DataType.STRING, true);
     } else {
       // string length explicitly specified for this field...
-      long len = Long.valueOf(type.getAuxInfo().trim());
+      String parenLen = type.getAuxInfo().trim();
+      String rawLen = parenLen.substring(1, parenLen.length()-1);
+      long len = Long.valueOf(rawLen);
       return new DataField(entity.getElementKey().toUpperCase(), DataType.STRING, true, len);
     }
   }
@@ -200,34 +203,37 @@ public class EntityConverter {
     return fields;
   }
 
-  public Scope getDbLogTableFilterScope(Entity entity) {
-    String filterType = entity.getString(DbLogTable.FILTER_TYPE);
-    if (filterType != null) {
-      Scope.Type type = Scope.Type.valueOf(filterType);
-      if (filterType.equals(Scope.Type.DEFAULT)) {
-        return new Scope(Scope.Type.DEFAULT, null);
-      } else {
-        String value = entity.getString(DbLogTable.FILTER_VALUE);
-        return new Scope(type, value);
-      }
-    } else {
-      return Scope.EMPTY_SCOPE;
+  public static RowFilterScope getDbLogTableRowFilterScope(Entity entity) {
+    RowFilterScope.Access defaultAccess = RowFilterScope.Access.FULL;
+    
+    String access = entity.getString(DbLogTable.DEFAULT_ACCESS);
+    
+    if (access != null) {
+      defaultAccess = RowFilterScope.Access.valueOf(access);
     }
+    
+    String rowOwner = entity.getString(DbLogTable.ROW_OWNER);
+    String groupReadOnly = entity.getString(DbLogTable.GROUP_READ_ONLY);
+    String groupModify = entity.getString(DbLogTable.GROUP_MODIFY);
+    String groupPrivileged = entity.getString(DbLogTable.GROUP_PRIVILEGED);
+      
+    return new RowFilterScope(defaultAccess, rowOwner, groupReadOnly, groupModify, groupPrivileged);
   }
 
-  public Scope getDbTableFilterScope(Entity entity) {
-    String filterType = entity.getString(DbTable.FILTER_TYPE);
-    if (filterType != null) {
-      Scope.Type type = Scope.Type.valueOf(filterType);
-      if (filterType.equals(Scope.Type.DEFAULT)) {
-        return new Scope(Scope.Type.DEFAULT, null);
-      } else {
-        String value = entity.getString(DbTable.FILTER_VALUE);
-        return new Scope(type, value);
-      }
-    } else {
-      return Scope.EMPTY_SCOPE;
+  public static RowFilterScope getDbTableRowFilterScope(Entity entity) {
+    RowFilterScope.Access defaultAccess = RowFilterScope.Access.FULL;
+    
+    String access = entity.getString(DbTable.DEFAULT_ACCESS);
+    if (access != null) {
+      defaultAccess = RowFilterScope.Access.valueOf(access);
     }
+    
+    String rowOwner = entity.getString(DbTable.ROW_OWNER);
+    String groupReadOnly = entity.getString(DbTable.GROUP_READ_ONLY);
+    String groupModify = entity.getString(DbTable.GROUP_MODIFY);
+    String groupPrivileged = entity.getString(DbTable.GROUP_PRIVILEGED);
+		
+    return new RowFilterScope(defaultAccess, rowOwner, groupReadOnly, groupModify, groupPrivileged);
   }
 
   public static Scope getDbTableFileInfoFilterScope(DbTableFileInfoEntity entity) {
@@ -263,7 +269,7 @@ public class EntityConverter {
     row.setDataETagAtModification(entity.getString(DbTable.DATA_ETAG_AT_MODIFICATION));
     row.setCreateUser(entity.getString(DbTable.CREATE_USER));
     row.setLastUpdateUser(entity.getString(DbTable.LAST_UPDATE_USER));
-    row.setFilterScope(getDbTableFilterScope(entity));
+    row.setRowFilterScope(getDbTableRowFilterScope(entity));
     row.setDeleted(entity.getBoolean(DbTable.DELETED));
 
     row.setFormId(entity.getString(DbTable.FORM_ID));
@@ -294,7 +300,7 @@ public class EntityConverter {
     row.setLastUpdateUser(entity.getString(DbLogTable.LAST_UPDATE_USER));
     row.setDeleted(entity.getBoolean(DbLogTable.DELETED));
 
-    row.setFilterScope(getDbLogTableFilterScope(entity));
+    row.setRowFilterScope(getDbLogTableRowFilterScope(entity));
     row.setFormId(entity.getString(DbLogTable.FORM_ID));
     row.setLocale(entity.getString(DbLogTable.LOCALE));
     row.setSavepointType(entity.getString(DbLogTable.SAVEPOINT_TYPE));

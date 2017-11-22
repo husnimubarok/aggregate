@@ -23,6 +23,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.opendatakit.aggregate.client.odktables.ColumnClient;
 import org.opendatakit.aggregate.client.odktables.RowClient;
+import org.opendatakit.aggregate.client.odktables.RowFilterScopeClient;
 import org.opendatakit.aggregate.client.odktables.RowResourceClient;
 import org.opendatakit.aggregate.client.odktables.ScopeClient;
 import org.opendatakit.aggregate.client.odktables.TableAclClient;
@@ -33,6 +34,7 @@ import org.opendatakit.aggregate.client.odktables.TableRoleClient;
 import org.opendatakit.aggregate.odktables.rest.TableConstants;
 import org.opendatakit.aggregate.odktables.rest.entity.Column;
 import org.opendatakit.aggregate.odktables.rest.entity.Row;
+import org.opendatakit.aggregate.odktables.rest.entity.RowFilterScope;
 import org.opendatakit.aggregate.odktables.rest.entity.RowResource;
 import org.opendatakit.aggregate.odktables.rest.entity.Scope;
 import org.opendatakit.aggregate.odktables.rest.entity.TableAcl;
@@ -67,7 +69,7 @@ public class UtilTransforms {
     Row serverRow = new Row();
     serverRow.setCreateUser(client.getCreateUser());
     serverRow.setDeleted(client.isDeleted());
-    serverRow.setFilterScope(transform(client.getFilterScope()));
+    serverRow.setRowFilterScope(transform(client.getRowFilterScope()));
     serverRow.setLastUpdateUser(client.getLastUpdateUser());
     serverRow.setRowETag(client.getRowETag());
     serverRow.setRowId(client.getRowId());
@@ -82,7 +84,46 @@ public class UtilTransforms {
     // TODO: this truncates the nanosecond portion of a date!
     serverRow.setSavepointTimestamp(nanoTime);
     serverRow.setSavepointCreator(client.getSavepointCreator());
+    serverRow.setDataETagAtModification(client.getDataETagAtModification());
     return serverRow;
+  }
+
+  /**
+   * Transforms into the server-side RowFilterScope.
+   */
+  public static RowFilterScope transform(RowFilterScopeClient client) {
+    String rowOwner = client.getRowOwner();
+    RowFilterScope.Access access = getAccess(client.getAccess());
+    String groupReadOnly = client.getGroupReadOnly();
+    String groupModify = client.getGroupModify();
+    String groupPrivileged = client.getGroupPrivileged(); 
+   
+    RowFilterScope serverScope = new RowFilterScope(access, rowOwner, groupReadOnly, groupModify, groupPrivileged);
+
+    return serverScope;
+  }
+  
+  public static RowFilterScope.Access getAccess(RowFilterScopeClient.Access access) {
+    RowFilterScope.Access convertedType = RowFilterScope.Access.FULL;
+    
+    if (access != null) {
+      switch(access) {
+      case HIDDEN:
+        convertedType = RowFilterScope.Access.HIDDEN;
+        break;
+      case MODIFY:
+        convertedType = RowFilterScope.Access.MODIFY;
+        break;
+      case READ_ONLY:
+        convertedType = RowFilterScope.Access.READ_ONLY;
+        break;
+      case FULL:
+      default:
+        break;
+      }
+    }
+    
+    return convertedType;
   }
 
   /**
@@ -176,26 +217,35 @@ public class UtilTransforms {
     row.setCreateUser(serverRow.getCreateUser());
     row.setDeleted(serverRow.isDeleted());
     row.setLastUpdateUser(serverRow.getLastUpdateUser());
+    row.setDataETagAtModification(serverRow.getDataETagAtModification());
     row.setRowETag(serverRow.getRowETag());
     row.setRowId(serverRow.getRowId());
-    if (serverRow.getFilterScope().getType() == null) {
-      row.setFilterScope(ScopeClient.EMPTY_SCOPE);
+    if (serverRow.getRowFilterScope().getDefaultAccess() == null) {
+      throw new IllegalStateException("rowFilterScope un-handled value!");
     } else {
-      switch (serverRow.getFilterScope().getType()) {
-      case DEFAULT:
-        row.setFilterScope(new ScopeClient(ScopeClient.Type.DEFAULT, serverRow.getFilterScope()
-            .getValue()));
+      switch (serverRow.getRowFilterScope().getDefaultAccess()) {
+      case FULL:
+        row.setRowFilterScope(new RowFilterScopeClient(RowFilterScopeClient.Access.FULL, serverRow.getRowFilterScope()
+            .getRowOwner(), serverRow.getRowFilterScope().getGroupReadOnly(), serverRow.getRowFilterScope().getGroupModify(), 
+            serverRow.getRowFilterScope().getGroupPrivileged()));
         break;
-      case USER:
-        row.setFilterScope(new ScopeClient(ScopeClient.Type.USER, serverRow.getFilterScope()
-            .getValue()));
+      case MODIFY:
+        row.setRowFilterScope(new RowFilterScopeClient(RowFilterScopeClient.Access.MODIFY, serverRow.getRowFilterScope()
+            .getRowOwner(), serverRow.getRowFilterScope().getGroupReadOnly(), serverRow.getRowFilterScope().getGroupModify(), 
+            serverRow.getRowFilterScope().getGroupPrivileged()));
         break;
-      case GROUP:
-        row.setFilterScope(new ScopeClient(ScopeClient.Type.GROUP, serverRow.getFilterScope()
-            .getValue()));
+      case READ_ONLY:
+        row.setRowFilterScope(new RowFilterScopeClient(RowFilterScopeClient.Access.READ_ONLY, serverRow.getRowFilterScope()
+            .getRowOwner(), serverRow.getRowFilterScope().getGroupReadOnly(), serverRow.getRowFilterScope().getGroupModify(), 
+            serverRow.getRowFilterScope().getGroupPrivileged()));
+        break;
+      case HIDDEN:
+        row.setRowFilterScope(new RowFilterScopeClient(RowFilterScopeClient.Access.HIDDEN, serverRow.getRowFilterScope()
+            .getRowOwner(), serverRow.getRowFilterScope().getGroupReadOnly(), serverRow.getRowFilterScope().getGroupModify(), 
+            serverRow.getRowFilterScope().getGroupPrivileged()));
         break;
       default:
-        row.setFilterScope(ScopeClient.EMPTY_SCOPE);
+        throw new IllegalStateException("rowFilterScope un-handled value!");
       }
     }
 
@@ -218,7 +268,7 @@ public class UtilTransforms {
     RowClient rowClient = new RowClient();
     rowClient.setCreateUser(serverResource.getCreateUser());
     rowClient.setDeleted(serverResource.isDeleted());
-    rowClient.setFilterScope(UtilTransforms.transform(serverResource.getFilterScope()));
+    rowClient.setRowFilterScope(UtilTransforms.transform(serverResource.getRowFilterScope()));
     rowClient.setLastUpdateUser(serverResource.getLastUpdateUser());
     rowClient.setRowETag(serverResource.getRowETag());
     rowClient.setRowId(serverResource.getRowId());
@@ -233,6 +283,7 @@ public class UtilTransforms {
         time)));
     rowClient.setSavepointCreator(serverResource.getSavepointCreator());
 
+    rowClient.setDataETagAtModification(serverResource.getDataETagAtModification());
     // data
     rowClient.setValues(Row.convertToMap(serverResource.getValues()));
 
@@ -260,6 +311,34 @@ public class UtilTransforms {
     }
     if (sc == null)
       sc = ScopeClient.EMPTY_SCOPE;
+    return sc;
+  }
+
+  public static RowFilterScopeClient transform(RowFilterScope serverScope) {
+    // First get the type of this scope
+    RowFilterScopeClient sc = null;
+
+    switch (serverScope.getDefaultAccess()) {
+    case FULL:
+      sc = new RowFilterScopeClient(RowFilterScopeClient.Access.FULL, serverScope.getRowOwner(),
+          serverScope.getGroupReadOnly(), serverScope.getGroupModify(), serverScope.getGroupPrivileged());
+      break;
+    case MODIFY:
+      sc = new RowFilterScopeClient(RowFilterScopeClient.Access.MODIFY, serverScope.getRowOwner(),
+          serverScope.getGroupReadOnly(), serverScope.getGroupModify(), serverScope.getGroupPrivileged());
+      break;
+    case READ_ONLY:
+      sc = new RowFilterScopeClient(RowFilterScopeClient.Access.READ_ONLY, serverScope.getRowOwner(),
+          serverScope.getGroupReadOnly(), serverScope.getGroupModify(), serverScope.getGroupPrivileged());
+      break;
+    case HIDDEN:
+      sc = new RowFilterScopeClient(RowFilterScopeClient.Access.HIDDEN, serverScope.getRowOwner(),
+          serverScope.getGroupReadOnly(), serverScope.getGroupModify(), serverScope.getGroupPrivileged());
+      break;
+    }
+    if (sc == null) {
+      throw new IllegalStateException("rowFilterScope un-handled value!");
+    }
     return sc;
   }
 

@@ -16,8 +16,10 @@
 
 package org.opendatakit.aggregate.odktables.api;
 
+import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
+import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
@@ -27,6 +29,7 @@ import javax.ws.rs.core.Response;
 import org.opendatakit.aggregate.odktables.exception.AppNameMismatchException;
 import org.opendatakit.aggregate.odktables.exception.PermissionDeniedException;
 import org.opendatakit.aggregate.odktables.exception.SchemaETagMismatchException;
+import org.opendatakit.aggregate.odktables.exception.TableNotFoundException;
 import org.opendatakit.aggregate.odktables.rest.ApiConstants;
 import org.opendatakit.aggregate.odktables.rest.entity.TableDefinitionResource;
 import org.opendatakit.common.persistence.exception.ODKDatastoreException;
@@ -62,11 +65,12 @@ public interface RealizedTableService {
    * @throws PermissionDeniedException
    * @throws ODKTaskLockException
    * @throws AppNameMismatchException
+   * @throws TableNotFoundException 
    */
   @GET
   @Produces({MediaType.APPLICATION_JSON, ApiConstants.MEDIA_TEXT_XML_UTF8, ApiConstants.MEDIA_APPLICATION_XML_UTF8})
   public Response /*TableDefinitionResource*/ getDefinition()
-      throws ODKDatastoreException, PermissionDeniedException, ODKTaskLockException, AppNameMismatchException;
+      throws ODKDatastoreException, PermissionDeniedException, ODKTaskLockException, AppNameMismatchException, TableNotFoundException;
   
   /**
    * Data row subresource for a realized tableId (supplied in implementation constructor)
@@ -77,9 +81,10 @@ public interface RealizedTableService {
    * @throws PermissionDeniedException
    * @throws AppNameMismatchException
    * @throws ODKTaskLockException
+   * @throws TableNotFoundException 
    */
   @Path("rows")
-  public DataService getData() throws ODKDatastoreException, PermissionDeniedException, SchemaETagMismatchException, AppNameMismatchException, ODKTaskLockException;
+  public DataService getData() throws ODKDatastoreException, PermissionDeniedException, SchemaETagMismatchException, AppNameMismatchException, ODKTaskLockException, TableNotFoundException;
 
   /**
    * Exposed only to provide the attachments URL in the TableResource
@@ -101,9 +106,10 @@ public interface RealizedTableService {
    * @throws PermissionDeniedException
    * @throws AppNameMismatchException
    * @throws ODKTaskLockException
+   * @throws TableNotFoundException 
    */
   @Path("attachments/{rowId}")
-  public InstanceFileService getInstanceFiles(@PathParam("rowId") String rowId) throws ODKDatastoreException, PermissionDeniedException, SchemaETagMismatchException, AppNameMismatchException, ODKTaskLockException;
+  public InstanceFileService getInstanceFiles(@PathParam("rowId") String rowId) throws ODKDatastoreException, PermissionDeniedException, SchemaETagMismatchException, AppNameMismatchException, ODKTaskLockException, TableNotFoundException;
 
   /**
    * Differences subresource for a realized tableId (supplied in implementation constructor)
@@ -114,9 +120,10 @@ public interface RealizedTableService {
    * @throws PermissionDeniedException
    * @throws AppNameMismatchException
    * @throws ODKTaskLockException
+   * @throws TableNotFoundException 
    */
   @Path("diff")
-  public DiffService getDiff() throws ODKDatastoreException, PermissionDeniedException, SchemaETagMismatchException, AppNameMismatchException, ODKTaskLockException;
+  public DiffService getDiff() throws ODKDatastoreException, PermissionDeniedException, SchemaETagMismatchException, AppNameMismatchException, ODKTaskLockException, TableNotFoundException;
   
   /**
    * Differences subresource for a realized tableId (supplied in implementation constructor)
@@ -127,7 +134,15 @@ public interface RealizedTableService {
    * @throws PermissionDeniedException
    * @throws AppNameMismatchException
    * @throws ODKTaskLockException
+   * @throws TableNotFoundException 
    */
   @Path("query")
-  public QueryService getQuery() throws ODKDatastoreException, PermissionDeniedException, SchemaETagMismatchException, AppNameMismatchException, ODKTaskLockException;
+  public QueryService getQuery() throws ODKDatastoreException, PermissionDeniedException, SchemaETagMismatchException, AppNameMismatchException, ODKTaskLockException, TableNotFoundException;
+  
+
+  @POST
+  @Path("installationStatus")
+  @Consumes({MediaType.APPLICATION_JSON})
+  public Response /*OK*/ postInstallationStatus(Object body) throws AppNameMismatchException, PermissionDeniedException, ODKDatastoreException, ODKTaskLockException;
+
 }

@@ -40,9 +40,9 @@ import org.opendatakit.aggregate.client.odktables.TableContentsClient;
 import org.opendatakit.aggregate.client.odktables.TableContentsForFilesClient;
 import org.opendatakit.aggregate.constants.ServletConsts;
 import org.opendatakit.aggregate.odktables.DataManager;
+import org.opendatakit.aggregate.odktables.DataManager.WebsafeRows;
 import org.opendatakit.aggregate.odktables.FileManager;
 import org.opendatakit.aggregate.odktables.TableManager;
-import org.opendatakit.aggregate.odktables.DataManager.WebsafeRows;
 import org.opendatakit.aggregate.odktables.api.FileService;
 import org.opendatakit.aggregate.odktables.api.InstanceFileService;
 import org.opendatakit.aggregate.odktables.api.OdkTables;
@@ -65,6 +65,7 @@ import org.opendatakit.aggregate.odktables.security.TablesUserPermissionsImpl;
 import org.opendatakit.common.datamodel.BinaryContent;
 import org.opendatakit.common.ermodel.BlobEntitySet;
 import org.opendatakit.common.persistence.DataField;
+import org.opendatakit.common.persistence.QueryResumePoint;
 import org.opendatakit.common.persistence.client.exception.DatastoreFailureException;
 import org.opendatakit.common.persistence.exception.ODKDatastoreException;
 import org.opendatakit.common.persistence.exception.ODKEntityNotFoundException;
@@ -88,8 +89,7 @@ public class ServerDataServiceImpl extends RemoteServiceServlet implements Serve
 	 */
   private static final long serialVersionUID = -5051558217315955180L;
 
-  @Override
-  public ArrayList<RowClient> getRows(String tableId) throws AccessDeniedException,
+  private WebsafeRows getRows(String tableId, QueryResumePoint resumePoint) throws AccessDeniedException,
       RequestFailureException, DatastoreFailureException, PermissionDeniedExceptionClient,
       EntityNotFoundExceptionClient, BadColumnNameExceptionClient {
     HttpServletRequest req = this.getThreadLocalRequest();
@@ -98,20 +98,7 @@ public class ServerDataServiceImpl extends RemoteServiceServlet implements Serve
       TablesUserPermissions userPermissions = new TablesUserPermissionsImpl(cc);
       String appId = ServerPreferencesProperties.getOdkTablesAppId(cc);
       DataManager dm = new DataManager(appId, tableId, userPermissions, cc);
-      // TODO: paginate this
-      // TODO: paginate this
-      // TODO: paginate this
-      // TODO: paginate this
-      // TODO: paginate this
-      // TODO: paginate this
-      // TODO: paginate this
-      // TODO: paginate this
-      // TODO: paginate this
-      // TODO: paginate this
-      // TODO: paginate this
-      WebsafeRows websafeResult = dm.getRows(null, 2000);
-      List<Row> rows = websafeResult.rows;
-      return transformRows(rows);
+      return dm.getRows(resumePoint, 100);
     } catch (ODKEntityNotFoundException e) {
       e.printStackTrace();
       throw new EntityNotFoundExceptionClient(e);
@@ -150,6 +137,11 @@ public class ServerDataServiceImpl extends RemoteServiceServlet implements Serve
       ArrayList<RowClient> rows = new ArrayList<RowClient>();
       rows.add(UtilTransforms.transform(row));
       tcc.rows = rows;
+      tcc.websafeBackwardCursor = null;
+      tcc.websafeRefetchCursor = null;
+      tcc.websafeResumeCursor = null;
+      tcc.hasMore = false;
+      tcc.hasPrior = false;
       return tcc;
     } catch (ODKEntityNotFoundException e) {
       e.printStackTrace();
@@ -255,6 +247,9 @@ public class ServerDataServiceImpl extends RemoteServiceServlet implements Serve
       String appId = ServerPreferencesProperties.getOdkTablesAppId(cc);
       TableManager tm = new TableManager(appId, userPermissions, cc);
       TableEntry entry = tm.getTable(tableId);
+      if ( entry == null || entry.getSchemaETag() == null ) {
+        throw new ODKEntityNotFoundException();
+      }
       ArrayList<String> elementKeys = DbColumnDefinitions.queryForDbColumnNames(tableId,
           entry.getSchemaETag(), cc);
       return elementKeys;
@@ -332,12 +327,22 @@ public class ServerDataServiceImpl extends RemoteServiceServlet implements Serve
   }
 
   @Override
-  public TableContentsClient getTableContents(String tableId) throws AccessDeniedException,
+  public TableContentsClient getTableContents(String tableId, String resumeCursor) throws AccessDeniedException,
       RequestFailureException, DatastoreFailureException, PermissionDeniedExceptionClient,
       EntityNotFoundExceptionClient, BadColumnNameExceptionClient {
     TableContentsClient tcc = new TableContentsClient();
-    tcc.rows = getRows(tableId);
+    
+    WebsafeRows websafeResult = getRows(tableId, 
+    		QueryResumePoint.fromWebsafeCursor(resumeCursor));
+    List<Row> rows = websafeResult.rows;
+    tcc.rows = transformRows(rows);
     tcc.columnNames = getColumnNames(tableId);
+    tcc.websafeBackwardCursor = websafeResult.websafeBackwardCursor;
+    tcc.websafeRefetchCursor = websafeResult.websafeRefetchCursor;
+    tcc.websafeResumeCursor = websafeResult.websafeResumeCursor;
+    tcc.hasMore = websafeResult.hasMore;
+    tcc.hasPrior = websafeResult.hasPrior;
+
     return tcc;
   }
 
@@ -433,7 +438,7 @@ public class ServerDataServiceImpl extends RemoteServiceServlet implements Serve
       String appId = ServerPreferencesProperties.getOdkTablesAppId(cc);
       TableManager tm = new TableManager(appId, userPermissions, cc);
       TableEntry table = tm.getTable(tableId);
-      if (table == null) { // you couldn't find the table
+      if (table == null || table.getSchemaETag() == null) { // you couldn't find the table
         throw new ODKEntityNotFoundException();
       }
       List<DbTableFileInfo.DbTableFileInfoEntity> entities = DbTableFileInfo.queryForAllOdkClientVersionsOfTableIdFiles(table.getTableId(), cc);
@@ -514,7 +519,7 @@ public class ServerDataServiceImpl extends RemoteServiceServlet implements Serve
       String appId = ServerPreferencesProperties.getOdkTablesAppId(cc);
       TableManager tm = new TableManager(appId, userPermissions, cc);
       TableEntry table = tm.getTable(tableId);
-      if (table == null) { // you couldn't find the table
+      if (table == null || table.getSchemaETag() == null) { // you couldn't find the table
         throw new ODKEntityNotFoundException();
       }
       String schemaETag = table.getSchemaETag();
@@ -639,7 +644,6 @@ public class ServerDataServiceImpl extends RemoteServiceServlet implements Serve
       throws AccessDeniedException, RequestFailureException, DatastoreFailureException,
       PermissionDeniedExceptionClient, EntityNotFoundExceptionClient {
 
-    TableContentsForFilesClient tcc = new TableContentsForFilesClient();
     HttpServletRequest req = this.getThreadLocalRequest();
     CallingContext cc = ContextFactory.getCallingContext(this, req);
     try {
@@ -647,7 +651,7 @@ public class ServerDataServiceImpl extends RemoteServiceServlet implements Serve
       String appId = ServerPreferencesProperties.getOdkTablesAppId(cc);
       TableManager tm = new TableManager(appId, userPermissions, cc);
       TableEntry table = tm.getTable(tableId);
-      if (table == null) { // you couldn't find the table
+      if (table == null || table.getSchemaETag() == null) { // you couldn't find the table
         throw new ODKEntityNotFoundException();
       }
       if( !filepath.startsWith(rowId + "/")) {

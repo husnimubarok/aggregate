@@ -23,6 +23,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.opendatakit.aggregate.odktables.rest.ElementDataType;
+import org.opendatakit.aggregate.odktables.rest.ElementType;
 import org.opendatakit.common.ermodel.Entity;
 import org.opendatakit.common.ermodel.Query;
 import org.opendatakit.common.ermodel.Relation;
@@ -36,6 +38,7 @@ import org.opendatakit.common.persistence.exception.ODKOverQuotaException;
 import org.opendatakit.common.web.CallingContext;
 
 import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -160,7 +163,8 @@ public class DbColumnDefinitions extends Relation {
       } else {
         ArrayList<String> childElementKeys;
         try {
-          childElementKeys = mapper.readValue(listChildren, ArrayList.class);
+          TypeReference<ArrayList<String>> ref = new TypeReference<ArrayList<String>>() {};
+          childElementKeys = mapper.readValue(listChildren, ref);
         } catch (JsonParseException e) {
           e.printStackTrace();
           return new ArrayList<String>();
@@ -284,8 +288,10 @@ public class DbColumnDefinitions extends Relation {
         // this has already been processed
         continue;
       }
-      if ("array".equals(colDefn.getElementType())) {
-        ArrayList<String> childElementKeys = colDefn.getArrayListChildElementKeys();
+      String elementType = colDefn.getElementType();
+      ArrayList<String> childElementKeys = colDefn.getArrayListChildElementKeys();
+      ElementType type = ElementType.parseElementType(elementType, !childElementKeys.isEmpty());
+      if (type.getDataType() == ElementDataType.array) {
         ArrayList<String> scratchArray = new ArrayList<String>();
         while (!childElementKeys.isEmpty()) {
           for (String childKey : childElementKeys) {
@@ -300,6 +306,7 @@ public class DbColumnDefinitions extends Relation {
             }
           }
           childElementKeys = scratchArray;
+          scratchArray = new ArrayList<String>();
         }
       }
     }
@@ -309,7 +316,10 @@ public class DbColumnDefinitions extends Relation {
         // this has already been processed
         continue;
       }
-      if (!"array".equals(colDefn.getElementType())) {
+      String elementType = colDefn.getElementType();
+      ArrayList<String> childElementKeys = colDefn.getArrayListChildElementKeys();
+      ElementType type = ElementType.parseElementType(elementType, !childElementKeys.isEmpty());
+      if (type.getDataType() != ElementDataType.array) {
         if (!colDefn.getArrayListChildElementKeys().isEmpty()) {
           colDefn.setNotUnitOfRetention();
         }

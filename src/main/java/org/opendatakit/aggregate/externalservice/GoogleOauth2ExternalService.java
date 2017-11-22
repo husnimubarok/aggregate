@@ -33,7 +33,6 @@ import javax.servlet.http.HttpServletResponse;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.logging.Log;
 import org.apache.http.NameValuePair;
-import org.opendatakit.aggregate.constants.BeanDefs;
 import org.opendatakit.aggregate.constants.ServletConsts;
 import org.opendatakit.aggregate.constants.common.OperationalStatus;
 import org.opendatakit.aggregate.exception.ODKExternalServiceCredentialsException;
@@ -45,12 +44,12 @@ import org.opendatakit.aggregate.server.ServerPreferencesProperties;
 import org.opendatakit.common.persistence.Datastore;
 import org.opendatakit.common.security.SecurityUtils;
 import org.opendatakit.common.security.User;
-import org.opendatakit.common.utils.HttpClientFactory;
 import org.opendatakit.common.utils.WebUtils;
 import org.opendatakit.common.web.CallingContext;
 import org.opendatakit.common.web.constants.HtmlConsts;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
+import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.http.ByteArrayContent;
 import com.google.api.client.http.GenericUrl;
 import com.google.api.client.http.HttpContent;
@@ -64,7 +63,6 @@ import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.model.Permission;
-import com.google.gdata.util.ServiceException;
 
 /**
  * Refactoring and base implementation using the new gdata APIs for accessing
@@ -98,9 +96,7 @@ public abstract class GoogleOauth2ExternalService extends AbstractExternalServic
     try {
       this.credential = getCredential(credentialScope, cc);
       try {
-        HttpClientFactory httpClientFactory = (HttpClientFactory) cc
-            .getBean(BeanDefs.HTTP_CLIENT_FACTORY);
-        this.httpTransport = httpClientFactory.getGoogleOAuth2Transport();
+        this.httpTransport = GoogleNetHttpTransport.newTrustedTransport();
         this.requestFactory = httpTransport.createRequestFactory(credential);
       } catch (GeneralSecurityException e) {
         throw new ODKExternalServiceCredentialsException(e);
@@ -161,10 +157,7 @@ public abstract class GoogleOauth2ExternalService extends AbstractExternalServic
       }
       PrivateKey serviceAccountPrivateKey = (PrivateKey) key;
 
-      HttpClientFactory httpClientFactory = (HttpClientFactory) cc
-          .getBean(BeanDefs.HTTP_CLIENT_FACTORY);
-      HttpTransport httpTransport = httpClientFactory.getGoogleOAuth2Transport();
-
+      HttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
       GoogleCredential credential = new GoogleCredential.Builder().setTransport(httpTransport)
           .setJsonFactory(jsonFactory).setServiceAccountId(serviceAccountUser)
           .setServiceAccountScopes(Collections.singleton(scopes))
@@ -198,14 +191,15 @@ public abstract class GoogleOauth2ExternalService extends AbstractExternalServic
       newPermission.setKind("drive#permission");
       newPermission.setRole("owner");
       newPermission.setType("user");
-      newPermission.setValue(userName);
+      newPermission.setEmailAddress(userName);
 
       // NOTE: Dropped the check because name was not a good value to compare
 
-      Drive.Permissions.Insert insertPerm = drive.permissions().insert(fileId, newPermission);
-      insertPerm.setSendNotificationEmails(false);
-      insertPerm.set("transferOwnership", Boolean.TRUE.toString());
-      Permission response = insertPerm.execute();
+      Drive.Permissions.Create createPerm = drive.permissions().create(fileId, newPermission);
+      // ownership transfer now requires notification e-mail
+      // createPerm.setSendNotificationEmail(false);
+      createPerm.setTransferOwnership(true);
+      Permission response = createPerm.execute();
 
       if (response == null) {
         oauth2logger.error(NO_PERM_RETURNED);
@@ -223,7 +217,7 @@ public abstract class GoogleOauth2ExternalService extends AbstractExternalServic
   }
 
   protected String executeStmt(String method, String urlString, String statement,
-      List<NameValuePair> qparams, boolean isFTQuery, CallingContext cc) throws ServiceException,
+      List<NameValuePair> qparams, boolean isFTQuery, CallingContext cc) throws 
       IOException, ODKExternalServiceException, GeneralSecurityException {
 
     if (statement == null && (POST.equals(method) || PATCH.equals(method) || PUT.equals(method))) {

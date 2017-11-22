@@ -35,7 +35,6 @@ public final class FusionTableConsts {
   public static final String VALUES_STMT = " VALUES ";
   public static final String INSERT_STMT = "INSERT INTO ";
   public static final String CREATE_STMT = "CREATE TABLE ";
-  public static final String FUSION_SCOPE = "https://www.googleapis.com/fusiontables/v1/query";
   public static final String SINGLE_QUOTE = "'";
   public static final String HTML_ESCAPED_SINGLE_QUOTE = "&#39;";
 
@@ -53,7 +52,8 @@ public final class FusionTableConsts {
     typeMap.put(ElementType.INTEGER, FusionTableType.NUMBER);
     typeMap.put(ElementType.DECIMAL, FusionTableType.NUMBER);
     typeMap.put(ElementType.GEOPOINT, FusionTableType.GPS);
-
+    typeMap.put(ElementType.GEOSHAPE, FusionTableType.STRING);
+    typeMap.put(ElementType.GEOTRACE, FusionTableType.STRING);
     typeMap.put(ElementType.BOOLEAN, FusionTableType.STRING);
     typeMap.put(ElementType.BINARY, FusionTableType.STRING);
     typeMap.put(ElementType.SELECT1, FusionTableType.STRING);

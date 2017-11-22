@@ -34,21 +34,19 @@ import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.apache.commons.lang3.CharEncoding;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.NameValuePair;
-import org.apache.http.client.HttpClient;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.params.ClientPNames;
-import org.apache.http.client.params.HttpClientParams;
 import org.apache.http.client.utils.URLEncodedUtils;
+import org.apache.http.config.SocketConfig;
+import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.message.BasicNameValuePair;
-import org.apache.http.params.BasicHttpParams;
-import org.apache.http.params.HttpConnectionParams;
-import org.apache.http.params.HttpParams;
 import org.apache.http.protocol.BasicHttpContext;
 import org.opendatakit.common.utils.HttpClientFactory;
 import org.springframework.security.authentication.AuthenticationProvider;
@@ -224,18 +222,18 @@ public class Oauth2ResourceFilter extends GenericFilterBean {
      // setup request interceptor to do preemptive auth
      // ((DefaultHttpClient) client).addRequestInterceptor(getPreemptiveAuth(), 0);
 
-     HttpParams httpParams = new BasicHttpParams();
-     HttpConnectionParams.setConnectionTimeout(httpParams, SERVICE_TIMEOUT_MILLISECONDS);
-     HttpConnectionParams.setSoTimeout(httpParams, SOCKET_ESTABLISHMENT_TIMEOUT_MILLISECONDS);
-     // support redirecting to handle http: => https: transition
-     HttpClientParams.setRedirecting(httpParams, true);
-     // support authenticating
-     HttpClientParams.setAuthenticating(httpParams, true);
-
-     httpParams.setParameter(ClientPNames.MAX_REDIRECTS, 1);
-     httpParams.setParameter(ClientPNames.ALLOW_CIRCULAR_REDIRECTS, true);
      // setup client
-     HttpClient client = httpClientFactory.createHttpClient(httpParams);
+     SocketConfig socketConfig = SocketConfig.copy(SocketConfig.DEFAULT)
+         .setSoTimeout(SOCKET_ESTABLISHMENT_TIMEOUT_MILLISECONDS)
+         .build();
+     RequestConfig requestConfig = RequestConfig.copy(RequestConfig.DEFAULT)
+         .setConnectTimeout(SERVICE_TIMEOUT_MILLISECONDS)
+         .setAuthenticationEnabled(true)
+         .setRedirectsEnabled(true)
+         .setMaxRedirects(1)
+         .setCircularRedirectsAllowed(true)
+         .build();
+     CloseableHttpClient client = httpClientFactory.createHttpClient(socketConfig, null, requestConfig);
 
      HttpGet httpget = new HttpGet(uri);
      logger.info(httpget.getURI().toString());
@@ -256,9 +254,9 @@ public class Oauth2ResourceFilter extends GenericFilterBean {
              BufferedReader reader = null;
              InputStreamReader isr = null;
              try {
-               reader = new BufferedReader(isr = new InputStreamReader(entity.getContent()));
+               reader = new BufferedReader(isr = new InputStreamReader(entity.getContent(), CharEncoding.UTF_8));
                @SuppressWarnings("unchecked")
-               Map<String,Object> userData = mapper.readValue(reader, Map.class);
+			   Map<String,Object> userData = mapper.readValue(reader, Map.class);
                return userData;
              } finally {
                if ( reader != null ) {

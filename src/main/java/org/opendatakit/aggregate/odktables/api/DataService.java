@@ -27,7 +27,6 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
 import org.opendatakit.aggregate.odktables.exception.BadColumnNameException;
-import org.opendatakit.aggregate.odktables.exception.ETagMismatchException;
 import org.opendatakit.aggregate.odktables.exception.InconsistentStateException;
 import org.opendatakit.aggregate.odktables.exception.PermissionDeniedException;
 import org.opendatakit.aggregate.odktables.exception.TableDataETagMismatchException;
@@ -71,7 +70,6 @@ public interface DataService {
    * @return {@link RowOutcomeList} of the newly added/modified/deleted rows.
    * @throws ODKTaskLockException
    * @throws ODKDatastoreException
-   * @throws ETagMismatchException
    * @throws PermissionDeniedException
    * @throws BadColumnNameException
    * @throws InconsistentStateException
@@ -81,7 +79,7 @@ public interface DataService {
   @Consumes({MediaType.APPLICATION_JSON, ApiConstants.MEDIA_TEXT_XML_UTF8, ApiConstants.MEDIA_APPLICATION_XML_UTF8})
   @Produces({MediaType.APPLICATION_JSON, ApiConstants.MEDIA_TEXT_XML_UTF8, ApiConstants.MEDIA_APPLICATION_XML_UTF8})
   public Response /*RowOutcomeList*/ alterRows(RowList rows)
-      throws ODKTaskLockException, ODKDatastoreException, ETagMismatchException,
+      throws ODKTaskLockException, ODKDatastoreException, 
       PermissionDeniedException, BadColumnNameException, InconsistentStateException, TableDataETagMismatchException;
 
   /**

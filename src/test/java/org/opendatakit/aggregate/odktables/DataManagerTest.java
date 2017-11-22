@@ -37,8 +37,8 @@ import org.opendatakit.aggregate.odktables.exception.PermissionDeniedException;
 import org.opendatakit.aggregate.odktables.rest.SavepointTypeManipulator;
 import org.opendatakit.aggregate.odktables.rest.entity.DataKeyValue;
 import org.opendatakit.aggregate.odktables.rest.entity.Row;
+import org.opendatakit.aggregate.odktables.rest.entity.RowFilterScope;
 import org.opendatakit.aggregate.odktables.rest.entity.Scope;
-import org.opendatakit.aggregate.odktables.rest.entity.Scope.Type;
 import org.opendatakit.aggregate.odktables.rest.entity.TableEntry;
 import org.opendatakit.aggregate.odktables.rest.entity.TableRole.TablePermission;
 import org.opendatakit.aggregate.odktables.security.TablesUserPermissions;
@@ -58,16 +58,6 @@ public class DataManagerTest {
     @Override
     public String getOdkTablesUserId() {
       return "myid";
-    }
-
-    @Override
-    public String getPhoneNumber() {
-      return null;
-    }
-
-    @Override
-    public String getXBearerCode() {
-      return null;
     }
 
     @Override
@@ -210,7 +200,7 @@ public class DataManagerTest {
   public void testGetRowNullSafe() throws ODKEntityPersistException, ODKDatastoreException,
       ODKTaskLockException, BadColumnNameException, ETagMismatchException, PermissionDeniedException, InconsistentStateException {
     Row added = Row.forInsert(T.Data.DYLAN.getId(), T.form_id_1, T.locale_1, SavepointTypeManipulator.complete(),
-        T.savepoint_timestamp_1, T.savepoint_creator_1, Scope.EMPTY_SCOPE, T.Data.DYLAN.getValues());
+        T.savepoint_timestamp_1, T.savepoint_creator_1, RowFilterScope.EMPTY_ROW_FILTER, T.Data.DYLAN.getValues());
     Row expected = dm.insertOrUpdateRow(added);
     Row actual = dm.getRow(T.Data.DYLAN.getId());
     assertEquals(expected, actual);
@@ -283,16 +273,20 @@ public class DataManagerTest {
       ODKDatastoreException, ODKTaskLockException, ETagMismatchException,
       BadColumnNameException, PermissionDeniedException, InconsistentStateException {
     Row expected = rows.get(0);
-    expected.setFilterScope(new Scope(Type.USER, T.user));
+    RowFilterScope exsc = new RowFilterScope(RowFilterScope.Access.MODIFY, T.user,
+        null, null, null);
+    expected.setRowFilterScope(exsc);
     expected = dm.insertOrUpdateRow(expected);
+    RowFilterScope acsc = new RowFilterScope(RowFilterScope.Access.MODIFY, T.user,
+        null, null, null);
     Row actual = Row.forUpdate(expected.getRowId(), expected.getRowETag(),
         T.form_id_1, T.locale_1, SavepointTypeManipulator.complete(),
-        T.savepoint_timestamp_1, T.savepoint_creator_1, new Scope(Type.USER, T.user),
+        T.savepoint_timestamp_1, T.savepoint_creator_1, acsc,
         null);
     actual = dm.insertOrUpdateRow(actual);
     expected.setRowETag(actual.getRowETag());
     expected.setDataETagAtModification(actual.getDataETagAtModification());
-    assertEquals(expected.getFilterScope(), actual.getFilterScope());
+    assertEquals(expected.getRowFilterScope(), actual.getRowFilterScope());
   }
 
   @Test
@@ -300,18 +294,19 @@ public class DataManagerTest {
       ETagMismatchException, ODKDatastoreException, ODKTaskLockException,
       BadColumnNameException, PermissionDeniedException, InconsistentStateException {
     Row row = rows.get(0);
-    row.setFilterScope(new Scope(Type.USER, T.user));
+    row.setRowFilterScope(new RowFilterScope(RowFilterScope.Access.MODIFY, T.user,
+        null, null, null));
     row = dm.insertOrUpdateRow(row);
     Row actual = Row
         .forUpdate(row.getRowId(), row.getRowETag(),
             T.form_id_1, T.locale_1, SavepointTypeManipulator.complete(),
-            T.savepoint_timestamp_1, T.savepoint_creator_1, Scope.EMPTY_SCOPE,
+            T.savepoint_timestamp_1, T.savepoint_creator_1, RowFilterScope.EMPTY_ROW_FILTER,
             null);
-    actual.setFilterScope(Scope.EMPTY_SCOPE);
+    actual.setRowFilterScope(RowFilterScope.EMPTY_ROW_FILTER);
     actual = dm.insertOrUpdateRow(actual);
     row.setRowETag(actual.getRowETag());
     row.setDataETagAtModification(actual.getDataETagAtModification());
-    assertEquals(Scope.EMPTY_SCOPE, actual.getFilterScope());
+    assertEquals(RowFilterScope.EMPTY_ROW_FILTER, actual.getRowFilterScope());
   }
 
   @Test(expected = BadColumnNameException.class)
@@ -323,7 +318,7 @@ public class DataManagerTest {
     ArrayList<DataKeyValue> values = new ArrayList<DataKeyValue>();
     values.add(new DataKeyValue(T.Columns.name + "diff", "value"));
     row = Row.forUpdate(row.getRowId(), row.getRowETag(), T.form_id_1, T.locale_1, SavepointTypeManipulator.complete(),
-        T.savepoint_timestamp_1, T.savepoint_creator_1, Scope.EMPTY_SCOPE, values);
+        T.savepoint_timestamp_1, T.savepoint_creator_1, RowFilterScope.EMPTY_ROW_FILTER, values);
     @SuppressWarnings("unused")
     Row actual = dm.insertOrUpdateRow(row);
   }
@@ -449,23 +444,26 @@ public class DataManagerTest {
     List<Row> rows = new ArrayList<Row>();
 
     Row row = Row.forInsert("1", T.form_id_1, T.locale_1, SavepointTypeManipulator.complete(),
-        T.savepoint_timestamp_1, T.savepoint_creator_1, Scope.EMPTY_SCOPE, values);
-    row.setFilterScope(new Scope(Type.DEFAULT, null));
+        T.savepoint_timestamp_1, T.savepoint_creator_1, RowFilterScope.EMPTY_ROW_FILTER, values);
+    row.setRowFilterScope(new RowFilterScope(RowFilterScope.Access.FULL, null,
+        null, null, null));
     rows.add(row);
 
     row = Row.forInsert("2", T.form_id_2, T.locale_2, SavepointTypeManipulator.complete(),
-        T.savepoint_timestamp_2, T.savepoint_creator_2, Scope.EMPTY_SCOPE, values);
-    row.setFilterScope(new Scope(Type.USER, T.user));
+        T.savepoint_timestamp_2, T.savepoint_creator_2, RowFilterScope.EMPTY_ROW_FILTER, values);
+    row.setRowFilterScope(new RowFilterScope(RowFilterScope.Access.MODIFY, T.user,
+        null, null, null));
     rows.add(row);
 
     row = Row.forInsert("3", T.form_id_1, T.locale_1, SavepointTypeManipulator.complete(),
-        T.savepoint_timestamp_1, T.savepoint_creator_1, Scope.EMPTY_SCOPE, values);
-    row.setFilterScope(new Scope(Type.GROUP, T.group));
+        T.savepoint_timestamp_1, T.savepoint_creator_1, RowFilterScope.EMPTY_ROW_FILTER, values);
+    row.setRowFilterScope(new RowFilterScope(RowFilterScope.Access.READ_ONLY, T.otherUser,
+        null, null, null));
     rows.add(row);
 
     row = Row.forInsert("4", T.form_id_2, T.locale_2, SavepointTypeManipulator.complete(),
-        T.savepoint_timestamp_2, T.savepoint_creator_2, Scope.EMPTY_SCOPE, values);
-    row.setFilterScope(Scope.EMPTY_SCOPE);
+        T.savepoint_timestamp_2, T.savepoint_creator_2, RowFilterScope.EMPTY_ROW_FILTER, values);
+    row.setRowFilterScope(RowFilterScope.EMPTY_ROW_FILTER);
     rows.add(row);
 
     List<Row> changes = new ArrayList<Row>();
@@ -477,7 +475,7 @@ public class DataManagerTest {
 
     for (Row update : changes) {
       update.setValues(newValues);
-      update.setFilterScope(null);
+      update.setRowFilterScope(null);
     }
 
     for ( Row r : rows ) {

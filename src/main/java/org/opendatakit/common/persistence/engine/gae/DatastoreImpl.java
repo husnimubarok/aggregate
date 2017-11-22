@@ -13,7 +13,6 @@
  */
 package org.opendatakit.common.persistence.engine.gae;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
@@ -26,6 +25,7 @@ import org.opendatakit.common.persistence.Datastore;
 import org.opendatakit.common.persistence.EntityKey;
 import org.opendatakit.common.persistence.Query;
 import org.opendatakit.common.persistence.TaskLock;
+import org.opendatakit.common.persistence.WrappedBigDecimal;
 import org.opendatakit.common.persistence.engine.DatastoreAccessMetrics;
 import org.opendatakit.common.persistence.exception.ODKDatastoreException;
 import org.opendatakit.common.persistence.exception.ODKEntityNotFoundException;
@@ -42,6 +42,8 @@ import com.google.appengine.api.datastore.Key;
 import com.google.appengine.api.datastore.KeyFactory;
 import com.google.appengine.api.datastore.PreparedQuery;
 import com.google.appengine.api.datastore.Text;
+import com.google.appengine.api.memcache.MemcacheService;
+import com.google.appengine.api.memcache.MemcacheServiceFactory;
 import com.google.apphosting.api.ApiProxy.OverQuotaException;
 
 /**
@@ -69,6 +71,8 @@ public class DatastoreImpl implements Datastore {
 
   private DatastoreService ds;
 
+  private MemcacheService syncCache;
+
   private StringFieldLengthMapping stringFieldLengthMap = new StringFieldLengthMapping();
   
   private DatastoreAccessMetrics dam = new DatastoreAccessMetrics();
@@ -79,6 +83,14 @@ public class DatastoreImpl implements Datastore {
     
     LogFactory.getLog(DatastoreImpl.class).info("Running on " + 
           ds.getDatastoreAttributes().getDatastoreType().toString() + " datastore");
+    
+    try {
+      syncCache = MemcacheServiceFactory.getMemcacheService();
+    } catch (Throwable t) {
+      // if we can't get a syncCache, that is OK
+      syncCache = null;
+      LogFactory.getLog(DatastoreImpl.class).info("MemcacheService could not be created");
+    }
   }
 
   DatastoreService getDatastoreService() {
@@ -147,6 +159,7 @@ public class DatastoreImpl implements Datastore {
       case DECIMAL:
         d.setNumericPrecision(DEFAULT_DBL_NUMERIC_PRECISION);
         d.setNumericScale(DEFAULT_DBL_NUMERIC_SCALE);
+        d.asDoublePrecision(true);
         nBytes += 8;
         ++nColumns;
         break;
@@ -279,7 +292,7 @@ public class DatastoreImpl implements Datastore {
           row.setDateField(d, date);
           break;
         case DECIMAL:
-          BigDecimal bd = new BigDecimal((Double) o);
+          WrappedBigDecimal bd = WrappedBigDecimal.fromDouble((Double) o);
           row.setNumericField(d, bd);
           break;
         case INTEGER:
@@ -355,9 +368,13 @@ public class DatastoreImpl implements Datastore {
           case DATETIME:
             e.setProperty(d.getName(), entity.getDateField(d));
             break;
-          case DECIMAL:
-            BigDecimal bd = entity.getNumericField(d);
-            e.setProperty(d.getName(), bd.doubleValue());
+          case DECIMAL: 
+            WrappedBigDecimal bd = entity.getNumericField(d);
+            if ( bd == null ) {
+              e.setProperty(d.getName(), null);
+            } else {
+              e.setProperty(d.getName(), bd.doubleValue());
+            }
             break;
           case INTEGER:
             e.setProperty(d.getName(), entity.getLongField(d));
@@ -463,6 +480,6 @@ public class DatastoreImpl implements Datastore {
 
   @Override
   public TaskLock createTaskLock(User user) {
-    return new TaskLockImpl(dam);
+    return new TaskLockImpl(dam, syncCache);
   }
 }

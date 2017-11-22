@@ -34,7 +34,6 @@ import org.opendatakit.aggregate.odktables.api.OdkTables;
 import org.opendatakit.aggregate.odktables.api.RealizedTableService;
 import org.opendatakit.aggregate.odktables.api.TableService;
 import org.opendatakit.aggregate.odktables.exception.BadColumnNameException;
-import org.opendatakit.aggregate.odktables.exception.ETagMismatchException;
 import org.opendatakit.aggregate.odktables.exception.InconsistentStateException;
 import org.opendatakit.aggregate.odktables.exception.PermissionDeniedException;
 import org.opendatakit.aggregate.odktables.exception.TableDataETagMismatchException;
@@ -66,7 +65,7 @@ public class DataServiceImpl implements DataService {
 
   @Override
   public Response getRows(@QueryParam(CURSOR_PARAMETER) String cursor, @QueryParam(FETCH_LIMIT) String fetchLimit) throws ODKDatastoreException, PermissionDeniedException, InconsistentStateException, ODKTaskLockException, BadColumnNameException {
-    int limit = (fetchLimit == null || fetchLimit.length() == 0) ? 2000 : Integer.parseInt(fetchLimit);
+    int limit = (fetchLimit == null || fetchLimit.length() == 0) ? 2000 : Integer.valueOf(fetchLimit);
     WebsafeRows websafeResult = dm.getRows(QueryResumePoint.fromWebsafeCursor(WebUtils.safeDecode(cursor)), limit);
     RowResourceList rowResourceList = new RowResourceList(getResources(websafeResult.rows),
         websafeResult.dataETag, getTableUri(),
@@ -82,7 +81,7 @@ public class DataServiceImpl implements DataService {
   
   @Override
   public Response /*RowOutcomeList*/ alterRows(RowList rows)
-      throws ODKTaskLockException, ODKDatastoreException, ETagMismatchException,
+      throws ODKTaskLockException, ODKDatastoreException,
       PermissionDeniedException, BadColumnNameException, InconsistentStateException, TableDataETagMismatchException {
 
     RowOutcomeList outcomes = dm.insertOrUpdateRows(rows);

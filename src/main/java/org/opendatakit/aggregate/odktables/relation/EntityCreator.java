@@ -32,6 +32,7 @@ import org.opendatakit.aggregate.odktables.relation.DbTableFileInfo.DbTableFileI
 import org.opendatakit.aggregate.odktables.rest.TableConstants;
 import org.opendatakit.aggregate.odktables.rest.entity.Column;
 import org.opendatakit.aggregate.odktables.rest.entity.DataKeyValue;
+import org.opendatakit.aggregate.odktables.rest.entity.RowFilterScope;
 import org.opendatakit.aggregate.odktables.rest.entity.Scope;
 import org.opendatakit.aggregate.odktables.rest.entity.TableRole;
 import org.opendatakit.aggregate.odktables.security.TablesUserPermissions;
@@ -205,7 +206,7 @@ public class EntityCreator {
 
   public void setRowFields(Entity row, String rowETag, String dataETagAtModification,
       String lastUpdateUser, boolean deleted,
-      Scope filterScope, String formId, String locale, String savepointType,
+      RowFilterScope rowFilterScope, String formId, String locale, String savepointType,
       String savepointTimestamp, String savepointCreator, ArrayList<DataKeyValue> values, List<DbColumnDefinitionsEntity> columns)
       throws BadColumnNameException {
     row.set(DbTable.ROW_ETAG, rowETag);
@@ -213,22 +214,21 @@ public class EntityCreator {
     row.set(DbTable.LAST_UPDATE_USER, lastUpdateUser);
     row.set(DbTable.DELETED, deleted);
 
-    // if filterScope is null, don't change the value
-    // if filterScope is the empty scope, set both filter type and value to null
-    // if filterScope is the default scope, make sure filter value is null
-    // else set both filter type and value to the values in filterScope
-    if (filterScope != null) {
-      Scope.Type filterType = filterScope.getType();
-      String filterValue = filterScope.getValue();
-      if (filterType == null) {
-        row.set(DbTable.FILTER_TYPE, (String) null);
-        row.set(DbTable.FILTER_VALUE, (String) null);
-      } else if (filterType.equals(Scope.Type.DEFAULT)) {
-        row.set(DbTable.FILTER_TYPE, filterType.name());
-        row.set(DbTable.FILTER_VALUE, (String) null);
+    // if filterScope is null, this is an error. Expect at least the FILTER_TYPE to be non-null.
+    if (rowFilterScope != null) {
+      RowFilterScope.Access defaultAccess = rowFilterScope.getDefaultAccess();
+      String rowOwner = rowFilterScope.getRowOwner();
+      String groupReadOnly = rowFilterScope.getGroupReadOnly();
+      String groupModify = rowFilterScope.getGroupModify();
+      String groupPrivileged = rowFilterScope.getGroupPrivileged();
+      if (defaultAccess == null) {
+        throw new IllegalArgumentException("Unexpected null filterType in row");
       } else {
-        row.set(DbTable.FILTER_TYPE, filterType.name());
-        row.set(DbTable.FILTER_VALUE, filterValue);
+        row.set(DbTable.DEFAULT_ACCESS, defaultAccess.name());
+        row.set(DbTable.ROW_OWNER, rowOwner);
+        row.set(DbTable.GROUP_READ_ONLY, groupReadOnly);
+        row.set(DbTable.GROUP_MODIFY, groupModify);
+        row.set(DbTable.GROUP_PRIVILEGED, groupPrivileged);
       }
     }
 
@@ -320,8 +320,11 @@ public class EntityCreator {
     entity.set(DbLogTable.DELETED, row.getBoolean(DbTable.DELETED));
 
     // common metadata
-    entity.set(DbLogTable.FILTER_TYPE, row.getString(DbTable.FILTER_TYPE));
-    entity.set(DbLogTable.FILTER_VALUE, row.getString(DbTable.FILTER_VALUE));
+    entity.set(DbLogTable.DEFAULT_ACCESS, row.getString(DbTable.DEFAULT_ACCESS));
+    entity.set(DbLogTable.ROW_OWNER, row.getString(DbTable.ROW_OWNER));
+    entity.set(DbLogTable.GROUP_READ_ONLY, row.getString(DbTable.GROUP_READ_ONLY));
+    entity.set(DbLogTable.GROUP_MODIFY, row.getString(DbTable.GROUP_MODIFY));
+    entity.set(DbLogTable.GROUP_PRIVILEGED, row.getString(DbTable.GROUP_PRIVILEGED));
     entity.set(DbLogTable.FORM_ID, row.getString(DbTable.FORM_ID));
     entity.set(DbLogTable.LOCALE, row.getString(DbTable.LOCALE));
     entity.set(DbLogTable.SAVEPOINT_TYPE, row.getString(DbTable.SAVEPOINT_TYPE));

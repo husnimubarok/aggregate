@@ -208,7 +208,7 @@ public class TableManager {
       return null;
     }
 
-    if (entryEntity != null && entryEntity.getSchemaETag() != null) {
+    if (entryEntity != null) {
       return converter.toTableEntry(entryEntity);
     } else {
       return null;
@@ -230,7 +230,7 @@ public class TableManager {
     TableEntry entry = null;
     DbTableDefinitionsEntity definitionEntity = null;
     List<DbColumnDefinitionsEntity> columnEntities = null;
-    LockTemplate propsLock = new LockTemplate(tableId, ODKTablesTaskLockType.TABLES_NON_PERMISSIONS_CHANGES, cc);
+    OdkTablesLockTemplate propsLock = new OdkTablesLockTemplate(tableId, ODKTablesTaskLockType.TABLES_NON_PERMISSIONS_CHANGES, OdkTablesLockTemplate.DelayStrategy.SHORT, cc);
     try {
       propsLock.acquire();
 
@@ -278,7 +278,12 @@ public class TableManager {
     userPermissions.checkPermission(appId, tableId, TablePermission.READ_TABLE_ENTRY);
     // get table entry entity
     DbTableEntryEntity entryEntity = DbTableEntry.getTableIdEntry(tableId, cc);
-    return converter.toTableEntry(entryEntity);
+    // check if table exists
+    if (entryEntity != null && entryEntity.getSchemaETag() != null) {
+      return converter.toTableEntry(entryEntity);
+    } else {
+      return null;
+    }
   }
 
   /**
@@ -308,7 +313,7 @@ public class TableManager {
 
     // lock table
     DbTableEntryEntity tableEntry = null;
-    LockTemplate propsLock = new LockTemplate(tableId, ODKTablesTaskLockType.TABLES_NON_PERMISSIONS_CHANGES, cc);
+    OdkTablesLockTemplate propsLock = new OdkTablesLockTemplate(tableId, ODKTablesTaskLockType.TABLES_NON_PERMISSIONS_CHANGES, OdkTablesLockTemplate.DelayStrategy.SHORT, cc);
     try {
       propsLock.acquire();
 
@@ -634,7 +639,7 @@ public class TableManager {
 
     DbTableEntryEntity tableEntry = DbTableEntry.getTableIdEntry(tableId, cc);
 
-    LockTemplate propsLock = new LockTemplate(tableId, ODKTablesTaskLockType.TABLES_NON_PERMISSIONS_CHANGES, cc);
+    OdkTablesLockTemplate propsLock = new OdkTablesLockTemplate(tableId, ODKTablesTaskLockType.TABLES_NON_PERMISSIONS_CHANGES, OdkTablesLockTemplate.DelayStrategy.SHORT, cc);
     try {
       propsLock.acquire();
       deleteVersionedTable(tableEntry, true, cc);

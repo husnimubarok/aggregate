@@ -12,7 +12,6 @@
  * the License.
  */
 package org.opendatakit.aggregate.externalservice;
-
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -27,21 +26,18 @@ import org.apache.http.NameValuePair;
 import org.apache.http.client.CookieStore;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.HttpClient;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPatch;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpUriRequest;
-import org.apache.http.client.params.ClientPNames;
-import org.apache.http.client.params.HttpClientParams;
-import org.apache.http.client.protocol.ClientContext;
+import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URLEncodedUtils;
+import org.apache.http.config.SocketConfig;
 import org.apache.http.impl.client.BasicCookieStore;
 import org.apache.http.impl.client.BasicCredentialsProvider;
-import org.apache.http.params.BasicHttpParams;
-import org.apache.http.params.HttpConnectionParams;
-import org.apache.http.params.HttpParams;
 import org.apache.http.protocol.BasicHttpContext;
 import org.apache.http.protocol.HttpContext;
 import org.opendatakit.aggregate.ContextFactory;
@@ -68,13 +64,14 @@ import org.opendatakit.common.utils.HttpClientFactory;
 import org.opendatakit.common.web.CallingContext;
 import org.opendatakit.common.web.constants.HtmlConsts;
 
+
 /**
  *
  * @author wbrunette@gmail.com
  * @author mitchellsundt@gmail.com
  *
  */
-public abstract class AbstractExternalService implements ExternalService{
+public abstract class AbstractExternalService implements ExternalService {
 
   private static final String NO_BATCH_FUNCTIONALITY_ERROR = "ERROR! External Service does NOT implement a BATCH function to upload multiple submissions - AbstractExternalService";
 
@@ -130,7 +127,7 @@ public abstract class AbstractExternalService implements ExternalService{
   public boolean canBatchSubmissions() {
     return false;
   }
-  
+
   @Override
   public void sendSubmissions(List<Submission> submissions, boolean streaming, CallingContext cc) throws ODKExternalServiceException {
     throw new ODKExternalServiceException(NO_BATCH_FUNCTIONALITY_ERROR);
@@ -156,36 +153,33 @@ public abstract class AbstractExternalService implements ExternalService{
   protected HttpResponse sendHttpRequest(String method, String url, HttpEntity entity, List<NameValuePair> qparams, CallingContext cc) throws
       IOException {
 
-    HttpParams httpParams = new BasicHttpParams();
-    HttpConnectionParams.setConnectionTimeout(httpParams, SOCKET_ESTABLISHMENT_TIMEOUT_MILLISECONDS);
-    HttpConnectionParams.setSoTimeout(httpParams, SERVICE_TIMEOUT_MILLISECONDS);
-
     // setup client
     HttpClientFactory factory = (HttpClientFactory) cc.getBean(BeanDefs.HTTP_CLIENT_FACTORY);
-    HttpClient client = factory.createHttpClient(httpParams);
 
-    // support redirecting to handle http: => https: transition
-    HttpClientParams.setRedirecting(httpParams, true);
-    // support authenticating
-    HttpClientParams.setAuthenticating(httpParams, true);
+    SocketConfig socketConfig = SocketConfig.copy(SocketConfig.DEFAULT)
+        .setSoTimeout(SOCKET_ESTABLISHMENT_TIMEOUT_MILLISECONDS)
+        .build();
+    RequestConfig requestConfig = RequestConfig.copy(RequestConfig.DEFAULT)
+        .setConnectTimeout(SERVICE_TIMEOUT_MILLISECONDS)
+        .setRedirectsEnabled(true)
+        .setAuthenticationEnabled(true)
+        .setMaxRedirects(32)
+        .setCircularRedirectsAllowed(true)
+        .build();
 
-    // redirect limit is set to some unreasonably high number
-    // resets of the socket cause a retry up to MAX_REDIRECTS times,
-    // so we should be careful not to set this too high...
-    httpParams.setParameter(ClientPNames.MAX_REDIRECTS, 32);
-    httpParams.setParameter(ClientPNames.ALLOW_CIRCULAR_REDIRECTS, true);
+    HttpClient client = factory.createHttpClient(socketConfig, null, requestConfig);
 
     // context holds authentication state machine, so it cannot be
     // shared across independent activities.
     HttpContext localContext = new BasicHttpContext();
 
-    localContext.setAttribute(ClientContext.COOKIE_STORE, cookieStore);
-    localContext.setAttribute(ClientContext.CREDS_PROVIDER, credsProvider);
+    localContext.setAttribute(HttpClientContext.COOKIE_STORE, cookieStore);
+    localContext.setAttribute(HttpClientContext.CREDS_PROVIDER, credsProvider);
 
     HttpUriRequest request = null;
-    if ( entity == null && (POST.equals(method) || PATCH.equals(method) || PUT.equals(method)) ) {
+    if (entity == null && (POST.equals(method) || PATCH.equals(method) || PUT.equals(method))) {
       throw new IllegalStateException("No body supplied for POST, PATCH or PUT request");
-    } else if ( entity != null && !(POST.equals(method) || PATCH.equals(method) || PUT.equals(method)) ) {
+    } else if (entity != null && !(POST.equals(method) || PATCH.equals(method) || PUT.equals(method))) {
       throw new IllegalStateException("Body was supplied for GET or DELETE request");
     }
 
@@ -197,12 +191,12 @@ public abstract class AbstractExternalService implements ExternalService{
       throw new IllegalStateException(e);
     }
 
-    if ( qparams == null ) {
+    if (qparams == null) {
       qparams = new ArrayList<NameValuePair>();
     }
     URI uri;
     try {
-      uri = new URI( nakedUri.getScheme(), nakedUri.getUserInfo(), nakedUri.getHost(),
+      uri = new URI(nakedUri.getScheme(), nakedUri.getUserInfo(), nakedUri.getHost(),
           nakedUri.getPort(), nakedUri.getPath(), URLEncodedUtils.format(qparams, HtmlConsts.UTF8_ENCODE), null);
     } catch (URISyntaxException e1) {
       e1.printStackTrace();
@@ -210,21 +204,21 @@ public abstract class AbstractExternalService implements ExternalService{
     }
     System.out.println(uri.toString());
 
-    if ( GET.equals(method) ) {
+    if (GET.equals(method)) {
       HttpGet get = new HttpGet(uri);
       request = get;
-    } else if ( DELETE.equals(method) ) {
+    } else if (DELETE.equals(method)) {
       HttpDelete delete = new HttpDelete(uri);
       request = delete;
-    } else if ( PATCH.equals(method) ) {
+    } else if (PATCH.equals(method)) {
       HttpPatch patch = new HttpPatch(uri);
       patch.setEntity(entity);
       request = patch;
-    } else if ( POST.equals(method) ) {
+    } else if (POST.equals(method)) {
       HttpPost post = new HttpPost(uri);
       post.setEntity(entity);
       request = post;
-    } else if ( PUT.equals(method) ) {
+    } else if (PUT.equals(method)) {
       HttpPut put = new HttpPut(uri);
       put.setEntity(entity);
       request = put;
@@ -273,7 +267,7 @@ public abstract class AbstractExternalService implements ExternalService{
     CommonFieldsBase serviceEntity = retrieveObjectEntity();
     List<? extends CommonFieldsBase> repeats = retrieveRepeatElementEntities();
 
-    if(repeats != null) {
+    if (repeats != null) {
       ds.putEntities(repeats, user);
     }
     ds.putEntity(serviceEntity, user);
@@ -317,7 +311,7 @@ public abstract class AbstractExternalService implements ExternalService{
     // upload data to external service
     if (!fsc.getExternalServicePublicationOption().equals(
         ExternalServicePublicationOption.STREAM_ONLY)) {
-  
+
       UploadSubmissions uploadTask = (UploadSubmissions) cc.getBean(BeanDefs.UPLOAD_TASK_BEAN);
       CallingContext ccDaemon = ContextFactory.duplicateContext(cc);
       ccDaemon.setAsDaemon(true);
@@ -367,5 +361,5 @@ public abstract class AbstractExternalService implements ExternalService{
     User user = cc.getCurrentUser();
     return ds.getEntity(parameterTableRelation, fsc.getAuriService(), user);
   }
-  
+
 }

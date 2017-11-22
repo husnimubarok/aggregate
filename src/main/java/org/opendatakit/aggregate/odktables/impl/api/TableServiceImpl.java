@@ -42,13 +42,12 @@ import javax.ws.rs.core.Response.ResponseBuilder;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
-
 import org.apache.commons.lang3.CharEncoding;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.opendatakit.aggregate.odktables.ConfigFileChangeDetail;
+import org.opendatakit.aggregate.odktables.FileContentInfo;
 import org.opendatakit.aggregate.odktables.FileManager;
-import org.opendatakit.aggregate.odktables.FileManager.FileChangeDetail;
-import org.opendatakit.aggregate.odktables.FileManager.FileContentInfo;
 import org.opendatakit.aggregate.odktables.TableManager;
 import org.opendatakit.aggregate.odktables.TableManager.WebsafeTables;
 import org.opendatakit.aggregate.odktables.api.OdkTables;
@@ -84,6 +83,7 @@ import org.opendatakit.common.security.common.GrantedAuthorityName;
 import org.opendatakit.common.security.server.SecurityServiceUtil;
 import org.opendatakit.common.utils.WebUtils;
 import org.opendatakit.common.web.CallingContext;
+import org.opendatakit.common.web.constants.HtmlConsts;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -95,7 +95,7 @@ public class TableServiceImpl implements TableService {
 
   private static final ObjectMapper mapper = new ObjectMapper();
 
-  private static final String ERROR_TABLE_NOT_FOUND = "Table not found";
+  public static final String ERROR_TABLE_NOT_FOUND = "Table not found";
   private static final String ERROR_SCHEMA_DIFFERS = "SchemaETag differs";
 
   private final ServletContext sc;
@@ -107,7 +107,7 @@ public class TableServiceImpl implements TableService {
   private final CallingContext cc;
 
   public TableServiceImpl(ServletContext sc, HttpServletRequest req, HttpHeaders headers,
-      UriInfo info, String appId, CallingContext cc) throws ODKEntityNotFoundException,
+                          UriInfo info, String appId, CallingContext cc) throws ODKEntityNotFoundException,
       ODKDatastoreException {
     this.sc = sc;
     this.req = req;
@@ -119,7 +119,7 @@ public class TableServiceImpl implements TableService {
   }
 
   public TableServiceImpl(ServletContext sc, HttpServletRequest req, HttpHeaders headers,
-      UriInfo info, String appId, String tableId, CallingContext cc)
+                          UriInfo info, String appId, String tableId, CallingContext cc)
       throws ODKEntityNotFoundException, ODKDatastoreException {
     this.sc = sc;
     this.req = req;
@@ -132,15 +132,15 @@ public class TableServiceImpl implements TableService {
 
   @Override
   public Response getTables(@QueryParam(CURSOR_PARAMETER) String cursor,
-      @QueryParam(FETCH_LIMIT) String fetchLimit) throws ODKDatastoreException,
+                            @QueryParam(FETCH_LIMIT) String fetchLimit) throws ODKDatastoreException,
       PermissionDeniedException, ODKTaskLockException {
 
     TablesUserPermissions userPermissions = new TablesUserPermissionsImpl(cc);
 
     TableManager tm = new TableManager(appId, userPermissions, cc);
 
-    int limit = (fetchLimit == null || fetchLimit.length() == 0) ? 2000 : Integer
-        .parseInt(fetchLimit);
+    int limit = (fetchLimit == null || fetchLimit.length() == 0) ?
+        2000 : Integer.valueOf(fetchLimit);
     WebsafeTables websafeResult = tm.getTables(
         QueryResumePoint.fromWebsafeCursor(WebUtils.safeDecode(cursor)), limit);
     ArrayList<TableResource> resources = new ArrayList<TableResource>();
@@ -253,16 +253,16 @@ public class TableServiceImpl implements TableService {
 
     TableManager tm = new TableManager(appId, userPermissions, cc);
     TableEntry entry = tm.getTable(tableId);
-    if (entry == null || entry.getSchemaETag() == null) {
+    if (entry == null) {
       // the table doesn't exist yet (or something is there that is database
       // cruft)
       throw new TableNotFoundException(ERROR_TABLE_NOT_FOUND + "\n" + tableId);
     }
-    if (!entry.getSchemaETag().equals(schemaETag)) {
+    if (entry.getSchemaETag() != null && !entry.getSchemaETag().equals(schemaETag)) {
       throw new SchemaETagMismatchException(ERROR_SCHEMA_DIFFERS + "\n" + entry.getSchemaETag());
     }
     RealizedTableService service = new RealizedTableServiceImpl(sc, req, headers, info, appId,
-        tableId, schemaETag, userPermissions, tm, cc);
+        tableId, schemaETag, (entry.getSchemaETag() == null), userPermissions, tm, cc);
     return service;
 
   }
@@ -311,7 +311,8 @@ public class TableServiceImpl implements TableService {
   }
 
   @Override
-  public Response getTableProperties() throws ODKDatastoreException, PermissionDeniedException,
+  public Response getTableProperties(@PathParam("odkClientVersion") String odkClientVersion)
+      throws ODKDatastoreException, PermissionDeniedException,
       ODKTaskLockException, TableNotFoundException, FileNotFoundException {
 
     TablesUserPermissions userPermissions = new TablesUserPermissionsImpl(cc);
@@ -324,7 +325,7 @@ public class TableServiceImpl implements TableService {
 
     FileManager fm = new FileManager(appId, cc);
 
-    fi = fm.getFile("1", tableId, appRelativePath);
+    fi = fm.getFile(odkClientVersion, tableId, appRelativePath);
 
     // And now prepare everything to be returned to the caller.
     if (fi.fileBlob != null && fi.contentType != null && fi.contentLength != null
@@ -507,14 +508,14 @@ public class TableServiceImpl implements TableService {
   }
 
   @Override
-  public Response putXmlTableProperties(PropertyEntryXmlList propertiesList)
+  public Response putXmlTableProperties(@PathParam("odkClientVersion") String odkClientVersion, PropertyEntryXmlList propertiesList)
       throws ODKDatastoreException, PermissionDeniedException, ODKTaskLockException,
       TableNotFoundException {
-    return putInternalTableProperties(propertiesList);
+    return putInternalTableProperties(odkClientVersion, propertiesList);
   }
 
   @Override
-  public Response putJsonTableProperties(ArrayList<Map<String, Object>> propertiesList)
+  public Response putJsonTableProperties(@PathParam("odkClientVersion") String odkClientVersion, ArrayList<Map<String, Object>> propertiesList)
       throws ODKDatastoreException, PermissionDeniedException, ODKTaskLockException,
       TableNotFoundException {
     ArrayList<PropertyEntryXml> properties = new ArrayList<PropertyEntryXml>();
@@ -557,10 +558,10 @@ public class TableServiceImpl implements TableService {
       properties.add(e);
     }
     PropertyEntryXmlList pl = new PropertyEntryXmlList(properties);
-    return putInternalTableProperties(pl);
+    return putInternalTableProperties(odkClientVersion, pl);
   }
 
-  public Response putInternalTableProperties(PropertyEntryXmlList propertiesList)
+  public Response putInternalTableProperties(String odkClientVersion, PropertyEntryXmlList propertiesList)
       throws ODKDatastoreException, PermissionDeniedException, ODKTaskLockException,
       TableNotFoundException {
 
@@ -573,7 +574,7 @@ public class TableServiceImpl implements TableService {
 
     String appRelativePath = FileManager.getPropertiesFilePath(tableId);
 
-    String contentType = com.google.common.net.MediaType.CSV_UTF_8.toString();
+    String contentType = HtmlConsts.RESP_TYPE_CSV;
 
     // DbTableFileInfo.NO_TABLE_ID -- means that we are working with app-level
     // permissions
@@ -628,11 +629,11 @@ public class TableServiceImpl implements TableService {
 
     FileManager fm = new FileManager(appId, cc);
 
-    FileContentInfo fi = new FileContentInfo(contentType, Long.valueOf(content.length), null,
+    FileContentInfo fi = new FileContentInfo(appRelativePath, contentType, Long.valueOf(content.length), null,
         content);
 
     @SuppressWarnings("unused")
-    FileChangeDetail outcome = fm.putFile("1", tableId, appRelativePath, userPermissions, fi);
+    ConfigFileChangeDetail outcome = fm.putFile(odkClientVersion, tableId, fi, userPermissions);
     return Response.status(Status.ACCEPTED)
         .header(ApiConstants.OPEN_DATA_KIT_VERSION_HEADER, ApiConstants.OPEN_DATA_KIT_VERSION)
         .header("Access-Control-Allow-Origin", "*")

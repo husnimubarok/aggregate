@@ -27,9 +27,6 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.opendatakit.aggregate.odktables.exception.PermissionDeniedException;
-import org.opendatakit.aggregate.odktables.rest.SavepointTypeManipulator;
-import org.opendatakit.aggregate.odktables.rest.entity.DataKeyValue;
-import org.opendatakit.aggregate.odktables.rest.entity.Row;
 import org.opendatakit.aggregate.odktables.rest.entity.Scope;
 import org.opendatakit.aggregate.odktables.rest.entity.Scope.Type;
 import org.opendatakit.aggregate.odktables.rest.entity.TableEntry;
@@ -42,8 +39,6 @@ import org.opendatakit.common.persistence.exception.ODKEntityNotFoundException;
 import org.opendatakit.common.persistence.exception.ODKTaskLockException;
 import org.opendatakit.common.web.CallingContext;
 import org.opendatakit.common.web.TestContextFactory;
-
-import com.google.common.collect.Lists;
 
 @Ignore
 public class AuthFilterTest {
@@ -61,16 +56,6 @@ public class AuthFilterTest {
     @Override
     public String getOdkTablesUserId() {
       return "myid";
-    }
-
-    @Override
-    public String getPhoneNumber() {
-      return null;
-    }
-
-    @Override
-    public String getXBearerCode() {
-      return null;
     }
 
     @Override
@@ -104,7 +89,7 @@ public class AuthFilterTest {
     TableEntry te = tm.createTable(tableId, T.columns);
 
     this.am = new TableAclManager(T.appId, tableId, userPermissions, cc);
-    List<Scope> scopes = Lists.newArrayList();
+    List<Scope> scopes = new ArrayList<Scope>();
     scopes.add(new Scope(Type.DEFAULT, null));
     scopes.add(new Scope(Type.USER, userPermissions.getOdkTablesUserId()));
 
@@ -155,16 +140,16 @@ public class AuthFilterTest {
     am.deleteAcl(currentUserScope);
     assertFalse(af.hasPermission(TablePermission.READ_ROW));
   }
-
+/*
   @Test
   public void testCheckFilterSucceedsDefaultScope() throws PermissionDeniedException,
       ODKDatastoreException {
     am.deleteAcl(currentUserScope);
     am.setAcl(currentUserScope, TableRole.FILTERED_READER);
     Row row = Row.forInsert("1", T.form_id_1, T.locale_1, SavepointTypeManipulator.complete(),
-        T.savepoint_timestamp_1, T.savepoint_creator_1, Scope.EMPTY_SCOPE, new ArrayList<DataKeyValue>());
-    row.setFilterScope(new Scope(Type.DEFAULT, null));
-    assertTrue(af.hasFilterScope(TablePermission.READ_ROW, row.getRowId(), row.getFilterScope()));
+        T.savepoint_timestamp_1, T.savepoint_creator_1, RowFilterScope.EMPTY_ROW_FILTER, new ArrayList<DataKeyValue>());
+    row.setRowFilterScope(new RowFilterScope(RowFilterScope.Type.DEFAULT, null));
+    assertTrue(af.hasFilterScope(TablePermission.READ_ROW, row.getRowId(), Scope.EMPTY_SCOPE));
   }
 
   @Test
@@ -173,9 +158,9 @@ public class AuthFilterTest {
     am.deleteAcl(currentUserScope);
     am.setAcl(currentUserScope, TableRole.FILTERED_READER);
     Row row = Row.forInsert("1", T.form_id_1, T.locale_1, SavepointTypeManipulator.complete(),
-        T.savepoint_timestamp_1, T.savepoint_creator_1, Scope.EMPTY_SCOPE, new ArrayList<DataKeyValue>());
-    row.setFilterScope(Scope.EMPTY_SCOPE);
-    assertFalse(af.hasFilterScope(TablePermission.READ_ROW, row.getRowId(), row.getFilterScope()));
+        T.savepoint_timestamp_1, T.savepoint_creator_1, RowFilterScope.EMPTY_ROW_FILTER, new ArrayList<DataKeyValue>());
+    row.setRowFilterScope(RowFilterScope.EMPTY_ROW_FILTER);
+    assertFalse(af.hasFilterScope(TablePermission.READ_ROW, row.getRowId(), Scope.EMPTY_SCOPE));
   }
 
   @Test
@@ -184,9 +169,9 @@ public class AuthFilterTest {
     am.deleteAcl(currentUserScope);
     am.setAcl(currentUserScope, TableRole.FILTERED_READER);
     Row row = Row.forInsert("1", T.form_id_1, T.locale_1, SavepointTypeManipulator.complete(),
-        T.savepoint_timestamp_1, T.savepoint_creator_1, Scope.EMPTY_SCOPE, new ArrayList<DataKeyValue>());
-    row.setFilterScope(currentUserScope);
-    assertTrue(af.hasFilterScope(TablePermission.UNFILTERED_READ, row.getRowId(), row.getFilterScope()));
+        T.savepoint_timestamp_1, T.savepoint_creator_1, RowFilterScope.EMPTY_ROW_FILTER, new ArrayList<DataKeyValue>());
+    row.setRowFilterScope(new RowFilterScope(RowFilterScope.Type.DEFAULT, null));
+    assertTrue(af.hasFilterScope(TablePermission.UNFILTERED_READ, row.getRowId(), Scope.EMPTY_SCOPE));
   }
 
   @Test
@@ -195,8 +180,9 @@ public class AuthFilterTest {
     am.deleteAcl(currentUserScope);
     am.setAcl(currentUserScope, TableRole.FILTERED_READER);
     Row row = Row.forInsert("1", T.form_id_1, T.locale_1, SavepointTypeManipulator.complete(),
-        T.savepoint_timestamp_1, T.savepoint_creator_1, Scope.EMPTY_SCOPE, new ArrayList<DataKeyValue>());
-    row.setFilterScope(new Scope(Type.USER, currentUserScope.getValue() + "diff"));
-    assertFalse(af.hasFilterScope(TablePermission.UNFILTERED_READ, row.getRowId(), row.getFilterScope()));
+        T.savepoint_timestamp_1, T.savepoint_creator_1, RowFilterScope.EMPTY_ROW_FILTER, new ArrayList<DataKeyValue>());
+    row.setRowFilterScope(new RowFilterScope(RowFilterScope.Type.MODIFY, currentUserScope.getValue() + "diff"));
+    assertFalse(af.hasFilterScope(TablePermission.UNFILTERED_READ, row.getRowId(), Scope.EMPTY_SCOPE));
   }
+  */
 }

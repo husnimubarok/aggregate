@@ -41,12 +41,12 @@ import org.opendatakit.aggregate.odktables.api.TableService;
 import org.opendatakit.aggregate.odktables.exception.AppNameMismatchException;
 import org.opendatakit.aggregate.odktables.exception.PermissionDeniedException;
 import org.opendatakit.aggregate.odktables.exception.SchemaETagMismatchException;
+import org.opendatakit.aggregate.odktables.exception.TableNotFoundException;
+import org.opendatakit.aggregate.odktables.relation.DbInstallationInteractionLog;
 import org.opendatakit.aggregate.odktables.rest.ApiConstants;
 import org.opendatakit.aggregate.odktables.rest.entity.TableDefinition;
 import org.opendatakit.aggregate.odktables.rest.entity.TableDefinitionResource;
 import org.opendatakit.aggregate.odktables.security.TablesUserPermissions;
-import org.opendatakit.common.persistence.Datastore;
-import org.opendatakit.common.persistence.engine.gae.DatastoreImpl;
 import org.opendatakit.common.persistence.exception.ODKDatastoreException;
 import org.opendatakit.common.persistence.exception.ODKEntityNotFoundException;
 import org.opendatakit.common.persistence.exception.ODKTaskLockException;
@@ -54,8 +54,12 @@ import org.opendatakit.common.security.common.GrantedAuthorityName;
 import org.opendatakit.common.security.server.SecurityServiceUtil;
 import org.opendatakit.common.web.CallingContext;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 public class RealizedTableServiceImpl implements RealizedTableService {
   private static final Log logger = LogFactory.getLog(RealizedTableServiceImpl.class);
+  
+  private static final ObjectMapper mapper = new ObjectMapper();
 
   private final ServletContext sc;
   private final HttpServletRequest req;
@@ -64,13 +68,14 @@ public class RealizedTableServiceImpl implements RealizedTableService {
   private final String appId;
   private final String tableId;
   private final String schemaETag;
+  private final boolean notActiveSchema;
   private final TablesUserPermissions userPermissions;
   private final TableManager tm;
   private final CallingContext cc;
 
   public RealizedTableServiceImpl(ServletContext sc, HttpServletRequest req,
       HttpHeaders headers, UriInfo info,
-      String appId, String tableId, String schemaETag,
+      String appId, String tableId, String schemaETag, boolean notActiveSchema, 
       TablesUserPermissions userPermissions, TableManager tm, CallingContext cc)
       throws ODKEntityNotFoundException, ODKDatastoreException {
     this.sc = sc;
@@ -80,6 +85,7 @@ public class RealizedTableServiceImpl implements RealizedTableService {
     this.appId = appId;
     this.tableId = tableId;
     this.schemaETag = schemaETag;
+    this.notActiveSchema = notActiveSchema;
     this.userPermissions = userPermissions;
     this.tm = tm;
     this.cc = cc;
@@ -96,10 +102,20 @@ public class RealizedTableServiceImpl implements RealizedTableService {
 
     tm.deleteTable(tableId);
     logger.info("tableId: " + tableId);
-    Datastore ds = cc.getDatastore();
-    if ( ds instanceof DatastoreImpl ) {
-      ((DatastoreImpl) ds).getDam().logUsage();
+
+    {
+      // if the request includes an installation header, 
+      // log that the user that has been changing the configuration from that installation.
+      String installationId = req.getHeader(ApiConstants.OPEN_DATA_KIT_INSTALLATION_HEADER);
+      try {
+        if ( installationId != null ) {
+          DbInstallationInteractionLog.recordChangeConfigurationEntry(installationId, tableId, cc);
+        }
+      } catch ( Exception e ) {
+        LogFactory.getLog(FileServiceImpl.class).error("Unable to recordChangeConfigurationEntry", e);
+      }
     }
+
     return Response.ok()
         .header(ApiConstants.OPEN_DATA_KIT_VERSION_HEADER, ApiConstants.OPEN_DATA_KIT_VERSION)
         .header("Access-Control-Allow-Origin", "*")
@@ -107,22 +123,31 @@ public class RealizedTableServiceImpl implements RealizedTableService {
   }
 
   @Override
-  public DataService getData() throws ODKDatastoreException, PermissionDeniedException, SchemaETagMismatchException, AppNameMismatchException, ODKTaskLockException {
+  public DataService getData() throws ODKDatastoreException, PermissionDeniedException, SchemaETagMismatchException, AppNameMismatchException, ODKTaskLockException, TableNotFoundException {
 
+    if ( notActiveSchema ) {
+      throw new TableNotFoundException(TableServiceImpl.ERROR_TABLE_NOT_FOUND + "\n" + tableId);
+    }
     DataService service = new DataServiceImpl(appId, tableId, schemaETag, info, userPermissions, cc);
     return service;
   }
 
   @Override
-  public DiffService getDiff() throws ODKDatastoreException, PermissionDeniedException, SchemaETagMismatchException, AppNameMismatchException, ODKTaskLockException {
+  public DiffService getDiff() throws ODKDatastoreException, PermissionDeniedException, SchemaETagMismatchException, AppNameMismatchException, ODKTaskLockException, TableNotFoundException {
 
+    if ( notActiveSchema ) {
+      throw new TableNotFoundException(TableServiceImpl.ERROR_TABLE_NOT_FOUND + "\n" + tableId);
+    }
     DiffService service = new DiffServiceImpl(appId, tableId, schemaETag, info, userPermissions, cc);
     return service;
   }
 
   @Override
-  public QueryService getQuery() throws ODKDatastoreException, PermissionDeniedException, SchemaETagMismatchException, AppNameMismatchException, ODKTaskLockException {
+  public QueryService getQuery() throws ODKDatastoreException, PermissionDeniedException, SchemaETagMismatchException, AppNameMismatchException, ODKTaskLockException, TableNotFoundException {
 
+    if ( notActiveSchema ) {
+      throw new TableNotFoundException(TableServiceImpl.ERROR_TABLE_NOT_FOUND + "\n" + tableId);
+    }
     QueryService service = new QueryServiceImpl(appId, tableId, schemaETag, info, userPermissions, cc);
     return service;
   }
@@ -133,15 +158,21 @@ public class RealizedTableServiceImpl implements RealizedTableService {
   }
 
   @Override
-  public InstanceFileService getInstanceFiles(@PathParam("rowId") String rowId) throws ODKDatastoreException, PermissionDeniedException, SchemaETagMismatchException, AppNameMismatchException, ODKTaskLockException {
+  public InstanceFileService getInstanceFiles(@PathParam("rowId") String rowId) throws ODKDatastoreException, PermissionDeniedException, SchemaETagMismatchException, AppNameMismatchException, ODKTaskLockException, TableNotFoundException {
 
+    if ( notActiveSchema ) {
+      throw new TableNotFoundException(TableServiceImpl.ERROR_TABLE_NOT_FOUND + "\n" + tableId);
+    }
     InstanceFileService service = new InstanceFileServiceImpl(appId, tableId, schemaETag, rowId, info, userPermissions, cc);
     return service;
   }
 
   @Override
-  public Response getDefinition() throws ODKDatastoreException, PermissionDeniedException, ODKTaskLockException, AppNameMismatchException {
+  public Response getDefinition() throws ODKDatastoreException, PermissionDeniedException, ODKTaskLockException, AppNameMismatchException, TableNotFoundException {
 
+    if ( notActiveSchema ) {
+      throw new TableNotFoundException(TableServiceImpl.ERROR_TABLE_NOT_FOUND + "\n" + tableId);
+    }
     TableDefinition definition = tm.getTableDefinition(tableId);
     TableDefinitionResource definitionResource = new TableDefinitionResource(definition);
     UriBuilder ub = info.getBaseUriBuilder();
@@ -156,6 +187,29 @@ public class RealizedTableServiceImpl implements RealizedTableService {
       throw new IllegalArgumentException("Unable to convert to URL");
     }
     return Response.ok(definitionResource)
+        .header(ApiConstants.OPEN_DATA_KIT_VERSION_HEADER, ApiConstants.OPEN_DATA_KIT_VERSION)
+        .header("Access-Control-Allow-Origin", "*")
+        .header("Access-Control-Allow-Credentials", "true").build();
+  }
+
+  @Override
+  public Response /*OK*/ postInstallationStatus(Object syncDetails) 
+      throws AppNameMismatchException, PermissionDeniedException, ODKDatastoreException, ODKTaskLockException {
+
+    {
+      // if the request includes an installation header, 
+      // log that the user that has been changing the configuration from that installation.
+      String installationId = req.getHeader(ApiConstants.OPEN_DATA_KIT_INSTALLATION_HEADER);
+      try {
+        if ( installationId != null ) {
+          DbInstallationInteractionLog.recordSyncStatusEntry(installationId, tableId, mapper.writeValueAsString(syncDetails), cc);
+        }
+      } catch ( Exception e ) {
+        LogFactory.getLog(RealizedTableServiceImpl.class).error("Unable to recordSyncStatusEntry", e);
+      }
+    }
+
+    return Response.ok()
         .header(ApiConstants.OPEN_DATA_KIT_VERSION_HEADER, ApiConstants.OPEN_DATA_KIT_VERSION)
         .header("Access-Control-Allow-Origin", "*")
         .header("Access-Control-Allow-Credentials", "true").build();

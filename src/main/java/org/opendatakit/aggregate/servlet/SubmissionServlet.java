@@ -58,6 +58,7 @@ import org.opendatakit.aggregate.task.UploadSubmissions;
 import org.opendatakit.aggregate.util.BackendActionsTable;
 import org.opendatakit.common.persistence.exception.ODKDatastoreException;
 import org.opendatakit.common.persistence.exception.ODKEntityPersistException;
+import org.opendatakit.common.persistence.exception.ODKTaskLockException;
 import org.opendatakit.common.web.CallingContext;
 import org.opendatakit.common.web.constants.BasicConsts;
 import org.opendatakit.common.web.constants.HtmlConsts;
@@ -130,7 +131,7 @@ public class SubmissionServlet extends ServletUtilBase {
       + "        </tr>"
       + "        <![endif]-->"
       + "     <tr>"
-      + "        <td><input type=\"submit\" name=\"button\" class=\"gwt-Button\" value=\"Upload Submission\" /></td>"
+      + "        <td><input id=\"upload_submission\" type=\"submit\" name=\"button\" class=\"gwt-Button\" value=\"Upload Submission\" /></td>"
       + "        <td />"
       + "     </tr>"
       + "    </table>"
@@ -277,9 +278,9 @@ public class SubmissionServlet extends ServletUtilBase {
         PrintWriter out = resp.getWriter();
         out.write(HtmlConsts.HTML_OPEN);
         out.write(HtmlConsts.BODY_OPEN);
-        out.write("Successful submission upload.  Click ");
+        out.write("<p>Successful submission upload.</p><p>Click ");
         out.write(HtmlUtil.createHref(cc.getWebApplicationURL(ADDR), "here", false));
-        out.write(" to return to upload submissions page.");
+        out.write(" to return to upload submissions page.</p>");
         out.write(HtmlConsts.BODY_CLOSE);
         out.write(HtmlConsts.HTML_CLOSE);
       } else {
@@ -350,6 +351,10 @@ public class SubmissionServlet extends ServletUtilBase {
       logger.error("Datastore failure - " + e.getMessage());
       e.printStackTrace();
       resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, ErrorConsts.PARSING_PROBLEM);
+    } catch (ODKTaskLockException e) {
+      logger.error("Task lock failure - " + e.getMessage());
+      e.printStackTrace();
+      resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, ErrorConsts.TASK_LOCK_PROBLEM);
     } catch (FileUploadException e) {
       logger.warn("Attachments parsing failure - " + e.getMessage());
       e.printStackTrace();
